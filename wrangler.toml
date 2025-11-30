@@ -1,0 +1,16 @@
+name = "propzing-admin"
+compatibility_date = "2025-11-28"
+node_compat = true
+
+[assets]
+directory = "./dist"
+
+# Environment variables (non-secret)
+# Add secrets using: wrangler secret put SECRET_NAME
+# Required secrets:
+# - CLOUDFLARE_ACCOUNT_ID
+# - R2_ACCESS_KEY_ID  
+# - R2_SECRET_ACCESS_KEY
+# - R2_BUCKET_NAME
+# - R2_BUCKET_PUBLIC_DOMAIN
+# - UPLOAD_SECRET
