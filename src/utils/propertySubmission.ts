@@ -24,6 +24,8 @@ export const submitProperty = async (
     }
 
     // Step 2: Parse coordinates if provided
+    // Coordinates parsing logic removed as it is currently unused
+    /*
     let latitude: number | null = null;
     let longitude: number | null = null;
     if (formData.coordinates && formData.coordinates.trim()) {
@@ -33,6 +35,7 @@ export const submitProperty = async (
         longitude = coords[1];
       }
     }
+    */
 
     // Step 3: Handle Developer (check if exists or create new)
     let developer_id: number | null = null;
@@ -58,7 +61,6 @@ export const submitProperty = async (
           .insert({
             name: formData.developer,
             email: formData.developer_email || null,
-            phone: formData.developer_phone || null,
             office_address: formData.developer_office || null,
             website: formData.developer_website || null,
             logo_url: formData.developer_logo_url || null,
@@ -83,21 +85,21 @@ export const submitProperty = async (
         external_id: formData.external_id,
         name: formData.name,
         slug: formData.slug || null,
-        developer: formData.developer,
+        // developer: formData.developer,
         developer_id: developer_id,
         area: formData.area,
         city: formData.city || null,
         country: formData.country || null,
-        latitude: latitude,
-        longitude: longitude,
+        // latitude: latitude,
+        // longitude: longitude,
         website: formData.website || null,
         status: formData.status,
         sale_status: formData.sale_status || null,
         completion_datetime: formData.completion_datetime || null,
         readiness: formData.readiness,
         permit_id: formData.permit_id || null,
-        min_price: formData.min_price,
-        max_price: formData.max_price,
+        // min_price: formData.min_price,
+        // max_price: formData.max_price,
         price_currency: formData.price_currency,
         service_charge: formData.service_charge || null,
         min_area: formData.min_area,
@@ -106,11 +108,11 @@ export const submitProperty = async (
         furnishing: formData.furnishing || null,
         has_escrow: formData.has_escrow || false,
         post_handover: formData.post_handover || false,
-        cover_url: formData.cover_url || null,
+        // cover_url: formData.cover_url || null,
         video_url: formData.video_url || null,
         brochure_url: formData.brochure_url || null,
         layouts_pdf: formData.layouts_pdf || null,
-        parking_specs: formData.parking_specs || null,
+        // parking_specs: formData.parking_specs || null,
         overview: formData.overview || null,
       })
       .select('id')
@@ -255,7 +257,7 @@ export const submitProperty = async (
     if (formData.paymentPlans && formData.paymentPlans.length > 0) {
       for (const plan of formData.paymentPlans) {
         // Insert payment plan header
-        const { data: newPlan, error: planError} = await supabase
+        const { data: newPlan, error: planError } = await supabase
           .from('property_payment_plans')
           .insert({
             property_id: property_id,

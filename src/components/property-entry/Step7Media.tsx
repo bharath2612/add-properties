@@ -36,9 +36,37 @@ const Step7Media: React.FC = () => {
             accept="image/jpeg,image/jpg,image/png,image/webp"
             category="image"
             onUploadComplete={(url) => updateFormData({ cover_url: url })}
-            currentUrl={formData.cover_url}
             helpText="Main property cover image (Max 5MB)"
           />
+
+          {formData.cover_url && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-700 dark:text-zinc-300 mb-3">
+                Cover Image:
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="relative group">
+                  <img
+                    src={formData.cover_url}
+                    alt="Cover Image"
+                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateFormData({ cover_url: '' })}
+                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Additional Images */}

@@ -1,4 +1,5 @@
-// R2 Upload Utility using Presigned URLs
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { mockR2Upload, isProductionMode } from './devUploadMock';
 
 export interface UploadResponse {
@@ -54,10 +55,8 @@ export const validateFileType = (file: File, category: FileCategory): string | n
 };
 
 /**
- * Upload file to R2 using presigned URL
- * 1. Request presigned URL from backend
- * 2. Upload directly to R2 using presigned URL
- * 3. Return public URL
+ * Upload file to R2 directly from client
+ * Generates presigned URL locally using exposed credentials (SECURITY WARNING APPLIES)
  */
 export const uploadToR2 = async (
   file: File,
@@ -77,91 +76,18 @@ export const uploadToR2 = async (
       return { success: false, error: typeError };
     }
 
-    // Check if we're in development mode
-    const isDev = !isProductionMode();
-    const uploadSecret = import.meta.env.VITE_R2_UPLOAD_SECRET || '';
-    
-    // In development mode without API server, use mock upload
-    if (isDev && !uploadSecret) {
-      console.warn('🧪 Development mode: Using mock upload (files not saved to R2)');
-      console.warn('💡 To test real uploads, add VITE_R2_UPLOAD_SECRET to .env.local and run: npm run dev:with-functions');
-      
-      // Simulate progress
-      if (onProgress) {
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          onProgress(i);
-        }
-      }
-      
-      const mockResult = await mockR2Upload(file, category);
-      return {
-        success: mockResult.success,
-        url: mockResult.publicUrl,
-        key: mockResult.key,
-        filename: file.name,
-        size: file.size,
-        type: file.type,
-      };
-    }
+    // Get credentials from environment
+    const accountId = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID;
+    const accessKeyId = import.meta.env.VITE_R2_ACCESS_KEY_ID;
+    const secretAccessKey = import.meta.env.VITE_R2_SECRET_ACCESS_KEY;
+    const bucketName = import.meta.env.VITE_R2_BUCKET_NAME;
+    const publicDomain = import.meta.env.VITE_R2_BUCKET_PUBLIC_DOMAIN;
 
-    if (!uploadSecret) {
-      console.error('❌ VITE_R2_UPLOAD_SECRET not set in environment variables');
-      return { 
-        success: false, 
-        error: 'Upload not configured. Missing VITE_R2_UPLOAD_SECRET environment variable.' 
-      };
-    }
-
-    console.log('🔐 Upload secret found, proceeding with upload...');
-
-    // Step 1: Get presigned URL from backend
-    console.log('📤 Requesting presigned URL for:', file.name, `(${formatFileSize(file.size)})`);
-    
-    const presignResponse = await fetch('/api/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Upload-Secret': uploadSecret,
-      },
-      body: JSON.stringify({
-        fileName: file.name,
-        fileType: file.type,
-        category: category,
-        fileSize: file.size,
-      }),
-    });
-
-    console.log('📥 Presign response status:', presignResponse.status);
-
-    if (!presignResponse.ok) {
-      let errorMessage = 'Failed to get upload URL';
-      let errorDetails = '';
-      
-      try {
-        const error = await presignResponse.json();
-        errorMessage = error.error || errorMessage;
-        errorDetails = error.details || '';
-        console.error('❌ Presign error:', error);
-      } catch (e) {
-        const errorText = await presignResponse.text();
-        console.error('❌ Presign error (raw):', errorText);
-        errorDetails = errorText;
-      }
-
-      // If we get 500/502/503 in development, suggest using mock mode
-      if (isDev && (presignResponse.status >= 500 && presignResponse.status < 600)) {
-        console.warn('💡 Backend API not available. Falling back to mock mode...');
-        console.warn('💡 To use real uploads in dev, run: npm run dev:with-functions');
-        
-        // Simulate progress
-        if (onProgress) {
-          for (let i = 0; i <= 100; i += 10) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            onProgress(i);
-          }
-        }
-        
+    // Check if we have credentials. If not, fallback to mock if in dev.
+    if (!accountId || !accessKeyId || !secretAccessKey || !bucketName || !publicDomain) {
+      const isDev = !isProductionMode();
+      if (isDev) {
+        console.warn('🧪 Development mode: Missing R2 credentials, using mock upload');
         const mockResult = await mockR2Upload(file, category);
         return {
           success: mockResult.success,
@@ -173,21 +99,49 @@ export const uploadToR2 = async (
         };
       }
 
+      console.error('❌ Missing R2 environment variables');
       return {
         success: false,
-        error: `${errorMessage} (Status: ${presignResponse.status})`,
-        details: errorDetails,
+        error: 'Upload configuration missing. Check .env.local for VITE_R2_* variables.'
       };
     }
 
-    const { uploadUrl, publicUrl, key } = await presignResponse.json();
-    console.log('✅ Got presigned URL, uploading to R2...');
+    // Initialize S3 Client
+    const client = new S3Client({
+      region: "auto",
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey,
+      },
+    });
 
-    // Step 2: Upload directly to R2 using presigned URL
+    // Generate Key
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const folder = category === 'image' ? 'images' : 'files';
+    const subfolder = new Date().toISOString().split('T')[0];
+    const key = `${folder}/${subfolder}/${timestamp}-${randomString}-${sanitizedName}`;
+
+    // Create Command
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: file.type,
+    });
+
+    // Generate Presigned URL
+    console.log('🔐 Generating presigned URL locally...');
+    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 3600 });
+    const publicUrl = `https://${publicDomain}/${key}`;
+
+    console.log('✅ Generated URL, uploading to R2...');
+
+    // Upload using XMLHttpRequest for progress tracking
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
 
-      // Track upload progress
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
@@ -210,11 +164,10 @@ export const uploadToR2 = async (
           });
         } else {
           console.error('❌ R2 upload failed with status:', xhr.status);
-          console.error('Response:', xhr.responseText);
           resolve({
             success: false,
             error: `Upload to R2 failed (Status: ${xhr.status})`,
-            details: xhr.responseText || xhr.statusText,
+            details: xhr.responseText,
           });
         }
       });
@@ -223,25 +176,17 @@ export const uploadToR2 = async (
         console.error('❌ Network error during upload:', e);
         resolve({
           success: false,
-          error: 'Network error during upload. Check your internet connection.',
+          error: 'Network error during upload.',
         });
       });
 
-      xhr.addEventListener('abort', () => {
-        console.warn('⚠️ Upload cancelled by user');
-        resolve({
-          success: false,
-          error: 'Upload cancelled',
-        });
-      });
-
-      // Upload file to presigned URL
       xhr.open('PUT', uploadUrl);
       xhr.setRequestHeader('Content-Type', file.type);
       xhr.send(file);
     });
 
   } catch (error: any) {
+    console.error('Upload error:', error);
     return {
       success: false,
       error: 'Upload failed',
@@ -268,4 +213,3 @@ export const uploadMultipleToR2 = async (
 
   return results;
 };
-
