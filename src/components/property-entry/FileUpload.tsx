@@ -118,7 +118,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     // Create a fake input event to reuse the upload logic
     const dataTransfer = new DataTransfer();
     acceptedFiles.forEach(file => dataTransfer.items.add(file));
-    
+
     if (fileInputRef.current) {
       fileInputRef.current.files = dataTransfer.files;
       handleFileSelect({ target: fileInputRef.current } as any);
@@ -166,7 +166,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 </svg>
                 <p className="text-sm text-gray-600 dark:text-zinc-300">Uploading... {progress}%</p>
                 <div className="w-full max-w-xs bg-gray-200 dark:bg-zinc-700 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-indigo-600 dark:bg-indigo-400 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
@@ -222,11 +222,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
         <div className="mt-3 space-y-2">
           {category === 'image' && currentUrl && (
             <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700">
-              <img 
-                src={currentUrl} 
-                alt="Preview" 
+              <img
+                src={currentUrl}
+                alt="Preview"
                 className="w-full h-48 object-cover"
                 onError={(e) => {
+                  console.error('❌ Failed to load image:', currentUrl);
+                  console.error('Error event:', e);
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
@@ -246,9 +248,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 </svg>
                 <span className="text-sm font-medium text-green-800 dark:text-green-200">File uploaded successfully</span>
               </div>
-              <a 
-                href={currentUrl} 
-                target="_blank" 
+              <a
+                href={currentUrl}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-green-600 dark:text-green-400 hover:underline"
               >
