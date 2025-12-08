@@ -1,193 +1,201 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
 interface Property {
   id: number;
-  external_id: string;
-  name: string;
-  slug: string | null;
-  developer: string | null;
-  developer_id: number | null;
-  area: string;
-  city: string | null;
-  country: string | null;
-  status: string;
-  min_price: number;
-  max_price: number;
-  price_currency: string;
-  created_at: string;
+  external_id?: string;
+  name?: string;
+  slug?: string | null;
+  developer_id?: number | null;
+  area?: string;
+  city?: string | null;
+  country?: string | null;
+  status?: string;
+  created_at?: string;
   partner_developers?: {
     name: string;
   };
+  [key: string]: any; // Allow any other columns from DB
 }
+
+interface FilterOptions {
+  areas: string[];
+  statuses: string[];
+  developers: { id: number; name: string }[];
+}
+
+const ITEMS_PER_PAGE = 10;
 
 const PropertiesPage: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
-  const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    areas: [],
+    statuses: [],
+    developers: [],
+  });
+  
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
   const [developerFilter, setDeveloperFilter] = useState('');
-  const [uniqueAreas, setUniqueAreas] = useState<string[]>([]);
-  const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
-  const [uniqueDevelopers, setUniqueDevelopers] = useState<string[]>([]);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
 
+  // Fetch filter options once on mount
   useEffect(() => {
-    fetchProperties();
+    fetchFilterOptions();
   }, []);
 
+  // Fetch properties when filters or page changes
   useEffect(() => {
-    filterProperties();
-  }, [searchTerm, statusFilter, areaFilter, developerFilter, properties]);
+    fetchProperties();
+  }, [currentPage, searchTerm, statusFilter, areaFilter, developerFilter]);
 
-  const fetchProperties = async () => {
+  const fetchFilterOptions = async () => {
+    try {
+      // Fetch all filter options in parallel
+      const [areasResult, statusesResult, developersResult] = await Promise.all([
+        supabase
+          .from('properties')
+          .select('area')
+          .not('area', 'is', null)
+          .neq('area', ''),
+        supabase
+          .from('properties')
+          .select('status')
+          .not('status', 'is', null)
+          .neq('status', ''),
+        supabase
+          .from('partner_developers')
+          .select('id, name')
+          .not('name', 'is', null)
+          .order('name'),
+      ]);
+
+      // Extract unique areas
+      const uniqueAreas = Array.from(
+        new Set((areasResult.data || []).map(item => item.area).filter(Boolean))
+      ).sort();
+
+      // Extract unique statuses
+      const uniqueStatuses = Array.from(
+        new Set((statusesResult.data || []).map(item => item.status).filter(Boolean))
+      ).sort();
+
+      setFilterOptions({
+        areas: uniqueAreas as string[],
+        statuses: uniqueStatuses as string[],
+        developers: developersResult.data || [],
+      });
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
+    }
+  };
+
+  const fetchProperties = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Fetch unique areas, statuses, and developers FIRST using SQL
-      const { data: areasData } = await supabase
+
+      // Calculate offset
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+
+      // Build the query - select all to handle schema differences
+      let query = supabase
         .from('properties')
-        .select('area')
-        .not('area', 'is', null)
-        .order('area');
-      
-      const { data: statusesData } = await supabase
-        .from('properties')
-        .select('status')
-        .not('status', 'is', null)
-        .order('status');
-      
-      // Fetch developers from partner_developers table
-      const { data: developersData } = await supabase
-        .from('partner_developers')
-        .select('name')
-        .not('name', 'is', null)
-        .order('name');
-      
-      // Extract unique values
-      const uniqueAreasFromDB = Array.from(
-        new Set(
-          (areasData || [])
-            .map(item => item.area)
-            .filter(area => area && area.trim() !== '')
-        )
-      ).sort();
-      
-      const uniqueStatusesFromDB = Array.from(
-        new Set(
-          (statusesData || [])
-            .map(item => item.status)
-            .filter(status => status && status.trim() !== '')
-        )
-      ).sort();
-      
-      const uniqueDevelopersFromDB = Array.from(
-        new Set(
-          (developersData || [])
-            .map(item => item.name)
-            .filter(dev => dev && dev.trim() !== '')
-        )
-      ).sort();
-      
-      // Set filters IMMEDIATELY
-      setUniqueAreas(uniqueAreasFromDB);
-      setUniqueStatuses(uniqueStatusesFromDB);
-      setUniqueDevelopers(uniqueDevelopersFromDB);
-      
-      // NOW fetch all properties for the table
-      let allProperties: Property[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
+        .select('*, partner_developers(name)', { count: 'exact' });
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('properties')
-          .select('*, partner_developers(name)')
-          .order('created_at', { ascending: false })
-          .range(from, from + batchSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allProperties = [...allProperties, ...data];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
+      // Apply filters
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
       }
 
-      setProperties(allProperties);
-      setFilteredProperties(allProperties);
-      
-      console.log('=== PROPERTIES LOADED ===');
-      console.log('Total properties:', allProperties.length);
-      console.log('========================');
+      if (areaFilter) {
+        query = query.eq('area', areaFilter);
+      }
+
+      if (developerFilter) {
+        query = query.eq('developer_id', parseInt(developerFilter));
+      }
+
+      if (searchTerm) {
+        // Search across multiple columns
+        query = query.or(`name.ilike.%${searchTerm}%,area.ilike.%${searchTerm}%,external_id.ilike.%${searchTerm}%`);
+      }
+
+      // Apply ordering and pagination
+      query = query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+
+      const { data, count, error } = await query;
+
+      if (error) throw error;
+
+      setProperties(data || []);
+      setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching properties:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, statusFilter, areaFilter, developerFilter]);
 
-  const filterProperties = () => {
-    let filtered = [...properties];
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(debouncedSearch);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [debouncedSearch]);
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (prop) =>
-          prop.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prop.developer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prop.area?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          prop.external_id?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const handleFilterChange = (filterType: 'status' | 'area' | 'developer', value: string) => {
+    setCurrentPage(1); // Reset to first page when filter changes
+    switch (filterType) {
+      case 'status':
+        setStatusFilter(value);
+        break;
+      case 'area':
+        setAreaFilter(value);
+        break;
+      case 'developer':
+        setDeveloperFilter(value);
+        break;
     }
-
-    if (statusFilter) {
-      filtered = filtered.filter((prop) => prop.status === statusFilter);
-    }
-
-    if (areaFilter) {
-      filtered = filtered.filter((prop) => prop.area === areaFilter);
-    }
-
-    if (developerFilter) {
-      filtered = filtered.filter((prop) => 
-        prop.partner_developers?.name === developerFilter
-      );
-    }
-
-    setFilteredProperties(filtered);
-    setCurrentPage(1);
   };
 
   const clearFilters = () => {
+    setDebouncedSearch('');
     setSearchTerm('');
     setStatusFilter('');
     setAreaFilter('');
     setDeveloperFilter('');
+    setCurrentPage(1);
   };
 
-  // Pagination logic
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredProperties.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredProperties.length / itemsPerPage);
+  // Pagination calculations
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+  const indexOfFirstItem = (currentPage - 1) * ITEMS_PER_PAGE;
+  const indexOfLastItem = Math.min(currentPage * ITEMS_PER_PAGE, totalCount);
 
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+  const paginate = (pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
+  };
 
   // Smart pagination with ellipsis
   const getPageNumbers = () => {
     const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
+    const range: number[] = [];
+    const rangeWithDots: (number | string)[] = [];
 
     for (
       let i = Math.max(2, currentPage - delta);
@@ -223,14 +231,7 @@ const PropertiesPage: React.FC = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 dark:border-zinc-600"></div>
-      </div>
-    );
-  }
-
+  const hasActiveFilters = searchTerm || statusFilter || areaFilter || developerFilter;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -238,7 +239,7 @@ const PropertiesPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-500 dark:text-zinc-500">
-            {filteredProperties.length} of {properties.length} properties
+            {hasActiveFilters ? `${totalCount} results` : `${totalCount} properties`}
           </p>
         </div>
         <Link
@@ -257,8 +258,8 @@ const PropertiesPage: React.FC = () => {
           <div className="sm:col-span-2">
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={debouncedSearch}
+              onChange={(e) => setDebouncedSearch(e.target.value)}
               placeholder="Search properties..."
               className="w-full px-3 py-1.5 bg-white dark:bg-black border border-gray-300 dark:border-zinc-800 rounded text-sm text-black dark:text-white placeholder-gray-400 dark:placeholder-zinc-600 focus:outline-none focus:border-gray-400 dark:focus:border-zinc-700"
             />
@@ -268,11 +269,11 @@ const PropertiesPage: React.FC = () => {
           <div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
               className="w-full px-3 py-1.5 bg-white dark:bg-black border border-gray-300 dark:border-zinc-800 rounded text-sm text-black dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-zinc-700"
             >
               <option value="">All Statuses</option>
-              {uniqueStatuses.map((status) => (
+              {filterOptions.statuses.map((status) => (
                 <option key={status} value={status}>
                   {status}
                 </option>
@@ -284,11 +285,11 @@ const PropertiesPage: React.FC = () => {
           <div>
             <select
               value={areaFilter}
-              onChange={(e) => setAreaFilter(e.target.value)}
+              onChange={(e) => handleFilterChange('area', e.target.value)}
               className="w-full px-3 py-1.5 bg-white dark:bg-black border border-gray-300 dark:border-zinc-800 rounded text-sm text-black dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-zinc-700"
             >
               <option value="">All Areas</option>
-              {uniqueAreas.map((area) => (
+              {filterOptions.areas.map((area) => (
                 <option key={area} value={area}>
                   {area}
                 </option>
@@ -300,13 +301,13 @@ const PropertiesPage: React.FC = () => {
           <div>
             <select
               value={developerFilter}
-              onChange={(e) => setDeveloperFilter(e.target.value)}
+              onChange={(e) => handleFilterChange('developer', e.target.value)}
               className="w-full px-3 py-1.5 bg-white dark:bg-black border border-gray-300 dark:border-zinc-800 rounded text-sm text-black dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-zinc-700"
             >
               <option value="">All Developers</option>
-              {uniqueDevelopers.map((developer) => (
-                <option key={developer} value={developer}>
-                  {developer}
+              {filterOptions.developers.map((developer) => (
+                <option key={developer.id} value={developer.id}>
+                  {developer.name}
                 </option>
               ))}
             </select>
@@ -314,7 +315,7 @@ const PropertiesPage: React.FC = () => {
         </div>
 
         {/* Clear Filters */}
-        {(searchTerm || statusFilter || areaFilter || developerFilter) && (
+        {hasActiveFilters && (
           <div className="mt-3">
             <button
               onClick={clearFilters}
@@ -342,8 +343,16 @@ const PropertiesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {currentItems.length > 0 ? (
-                currentItems.map((property) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 dark:border-zinc-600"></div>
+                    </div>
+                  </td>
+                </tr>
+              ) : properties.length > 0 ? (
+                properties.map((property) => (
                   <tr 
                     key={property.id} 
                     onClick={() => window.location.href = `/property/${property.slug || property.id}`}
@@ -357,7 +366,7 @@ const PropertiesPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       <p className="text-sm text-gray-600 dark:text-zinc-400">
-                        {property.partner_developers?.name || property.developer || '-'}
+                        {property.partner_developers?.name || '-'}
                       </p>
                     </td>
                     <td className="py-3 px-4">
@@ -406,7 +415,7 @@ const PropertiesPage: React.FC = () => {
           <div className="border-t border-gray-200 dark:border-zinc-900 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="text-xs text-gray-500 dark:text-zinc-500">
-                {indexOfFirstItem + 1}–{Math.min(indexOfLastItem, filteredProperties.length)} of {filteredProperties.length}
+                {indexOfFirstItem + 1}–{indexOfLastItem} of {totalCount}
               </div>
               <div className="flex items-center gap-1">
                 <button

@@ -10,12 +10,10 @@ interface Analytics {
   onSale: number;
   avgPrice: number;
   recentProperties: any[];
-  allProperties: any[];
+  developerStats: { name: string; properties: number }[];
 }
 
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
-
-// Incremental grey shades from light to dark for bar chart
 const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
 
 const HomePage: React.FC = () => {
@@ -26,7 +24,7 @@ const HomePage: React.FC = () => {
     onSale: 0,
     avgPrice: 0,
     recentProperties: [],
-    allProperties: [],
+    developerStats: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,70 +34,95 @@ const HomePage: React.FC = () => {
 
   const fetchAnalytics = async () => {
     try {
-      // Fetch all developers first
-      const { data: developersData, error: developersError } = await supabase
-        .from('partner_developers')
-        .select('id, name');
-
-      if (developersError) throw developersError;
-
-      const developersMap = new Map<number, string>();
-      if (developersData) {
-        developersData.forEach(dev => {
-          developersMap.set(dev.id, dev.name);
-        });
-      }
-
-      // Fetch all properties - same batch logic as PropertiesPage
-      let allProperties: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
+      // Run all queries in parallel for maximum speed
+      const [
+        totalResult,
+        underConstructionResult,
+        completedResult,
+        onSaleResult,
+        recentResult,
+        developerStatsResult,
+      ] = await Promise.all([
+        // 1. Total count
+        supabase
           .from('properties')
-          .select('*')
+          .select('*', { count: 'exact', head: true }),
+
+        // 2. Under construction count
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Under construction'),
+
+        // 3. Completed count
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Completed'),
+
+        // 4. On Sale count
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'On Sale'),
+
+        // 5. Recent 5 properties with developer name (select all to handle schema differences)
+        supabase
+          .from('properties')
+          .select('*, partner_developers(name)')
           .order('created_at', { ascending: false })
-          .range(from, from + batchSize - 1);
+          .limit(5),
 
-        if (error) throw error;
+        // 6. Developer stats - get property counts grouped by developer
+        supabase
+          .from('properties')
+          .select('developer_id, partner_developers(name)')
+          .not('developer_id', 'is', null),
+      ]);
 
-        if (data && data.length > 0) {
-          // Map properties with developer names
-          const propertiesWithDeveloperNames = data.map(prop => ({
-            ...prop,
-            developer_name: prop.developer_id ? developersMap.get(prop.developer_id) || 'Unknown' : 'Unknown',
-          }));
-          allProperties = [...allProperties, ...propertiesWithDeveloperNames];
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
+      // Calculate average price from recent properties if they have price data
+      let avgPrice = 0;
+      if (recentResult.data && recentResult.data.length > 0) {
+        const pricesWithMin = recentResult.data.filter((p: any) => p.min_price && p.min_price > 0);
+        if (pricesWithMin.length > 0) {
+          const sum = pricesWithMin.reduce((acc: number, p: any) => acc + (p.min_price || 0), 0);
+          avgPrice = Math.round(sum / pricesWithMin.length);
         }
       }
 
-      if (allProperties.length > 0) {
-        const total = allProperties.length;
-        const underConstruction = allProperties.filter(p => p.status === 'Under construction').length;
-        const completed = allProperties.filter(p => p.status === 'Completed').length;
-        const onSale = allProperties.filter(p => p.status === 'On Sale').length;
-        
-        const pricesWithMin = allProperties.filter(p => p.min_price);
-        const avgPrice = pricesWithMin.length > 0
-          ? pricesWithMin.reduce((sum, p) => sum + (p.min_price || 0), 0) / pricesWithMin.length
-          : 0;
-
-        setAnalytics({
-          totalProperties: total,
-          underConstruction,
-          completed,
-          onSale,
-          avgPrice: Math.round(avgPrice),
-          recentProperties: allProperties.slice(0, 5),
-          allProperties: allProperties,
+      // Process developer stats - count properties per developer
+      const developerCounts: Record<string, number> = {};
+      if (developerStatsResult.data) {
+        developerStatsResult.data.forEach((prop: any) => {
+          const devName = prop.partner_developers?.name || 'Unknown';
+          developerCounts[devName] = (developerCounts[devName] || 0) + 1;
         });
       }
+
+      // Get top 5 developers
+      const developerStats = Object.entries(developerCounts)
+        .map(([name, count]) => ({
+          name: name.length > 30 ? name.substring(0, 30) + '...' : name,
+          properties: count,
+        }))
+        .sort((a, b) => b.properties - a.properties)
+        .slice(0, 5);
+
+      // Map recent properties with developer names
+      const recentProperties = (recentResult.data || []).map((prop: any) => ({
+        ...prop,
+        developer_name: prop.partner_developers?.name || 'Unknown',
+      }));
+
+      setAnalytics({
+        totalProperties: totalResult.count || 0,
+        underConstruction: underConstructionResult.count || 0,
+        completed: completedResult.count || 0,
+        onSale: onSaleResult.count || 0,
+        avgPrice,
+        recentProperties,
+        developerStats,
+      });
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -113,24 +136,6 @@ const HomePage: React.FC = () => {
     { name: 'On Sale', value: analytics.onSale },
     { name: 'Others', value: analytics.totalProperties - analytics.underConstruction - analytics.completed - analytics.onSale },
   ].filter(item => item.value > 0);
-
-  // Developer chart data - count properties by developer from ALL properties
-  const developerData = React.useMemo(() => {
-    const developerCounts = analytics.allProperties.reduce((acc: any, property) => {
-      const dev = property.developer_name || 'Unknown';
-      acc[dev] = (acc[dev] || 0) + 1;
-      return acc;
-    }, {});
-
-    // Get top 5 developers by property count
-    return Object.entries(developerCounts)
-      .map(([name, count]) => ({ 
-        name: name.length > 30 ? name.substring(0, 30) + '...' : name, 
-        properties: count 
-      }))
-      .sort((a: any, b: any) => b.properties - a.properties)
-      .slice(0, 5);
-  }, [analytics.allProperties]);
 
   if (loading) {
     return (
@@ -210,9 +215,9 @@ const HomePage: React.FC = () => {
         {/* Developers Chart */}
         <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 5 Developers by Properties</h3>
-          {developerData.length > 0 ? (
+          {analytics.developerStats.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={developerData} layout="vertical" margin={{ left: 10 }}>
+              <BarChart data={analytics.developerStats} layout="vertical" margin={{ left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
                 <XAxis 
                   type="number"
@@ -245,7 +250,7 @@ const HomePage: React.FC = () => {
                   name="Properties"
                   radius={[0, 4, 4, 0]}
                 >
-                  {developerData.map((_entry, index) => (
+                  {analytics.developerStats.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={BAR_COLORS[index]} />
                   ))}
                 </Bar>
@@ -313,3 +318,4 @@ const HomePage: React.FC = () => {
 };
 
 export default HomePage;
+
