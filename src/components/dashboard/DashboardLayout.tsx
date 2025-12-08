@@ -80,12 +80,31 @@ const DashboardLayout: React.FC = () => {
             })}
           </ul>
         </nav>
+
+        {/* Add Property Button at Bottom */}
+        <div className="p-3 border-t border-gray-200 dark:border-zinc-900">
+          <Link
+            to="/add-property"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              location.pathname === '/add-property'
+                ? 'bg-black dark:bg-white text-white dark:text-black'
+                : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-zinc-200'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            {isSidebarOpen && (
+              <span>Add Property</span>
+            )}
+          </Link>
+        </div>
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-gray-50 dark:bg-black border-b border-gray-200 dark:border-zinc-900 px-4 md:px-6 py-3">
+        <header className="bg-gray-50 dark:bg-black border-b border-gray-200 dark:border-zinc-900 px-4 md:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Mobile menu button */}
@@ -127,7 +146,7 @@ const DashboardLayout: React.FC = () => {
         {/* Mobile Navigation Menu */}
         {isSidebarOpen && (
           <div className="md:hidden bg-gray-50 dark:bg-zinc-950 border-b border-gray-200 dark:border-zinc-900">
-            <nav className="p-3">
+            <nav className="p-3 space-y-3">
               <ul className="space-y-1">
                 {menuItems.map((item) => {
                   const isActive = location.pathname === item.path;
@@ -149,6 +168,20 @@ const DashboardLayout: React.FC = () => {
                   );
                 })}
               </ul>
+              <Link
+                to="/add-property"
+                onClick={() => setIsSidebarOpen(false)}
+                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  location.pathname === '/add-property'
+                    ? 'bg-black dark:bg-white text-white dark:text-black'
+                    : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-zinc-200'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Property</span>
+              </Link>
             </nav>
           </div>
         )}

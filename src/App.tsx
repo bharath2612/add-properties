@@ -16,24 +16,22 @@ function App() {
         <Router>
           <DashboardAuth>
             <Routes>
-              {/* Dashboard Routes */}
+              {/* Dashboard Routes with Layout */}
               <Route path="/" element={<DashboardLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="properties" element={<PropertiesPage />} />
+                <Route
+                  path="add-property"
+                  element={
+                    <FormProvider>
+                      <PropertyEntryForm />
+                    </FormProvider>
+                  }
+                />
               </Route>
               
               {/* Property Details Route (Full Screen) */}
               <Route path="/property/:slug" element={<PropertyDetailsPage />} />
-              
-              {/* Property Entry Form Route (Full Screen) */}
-              <Route
-                path="/add-property"
-                element={
-                  <FormProvider>
-                    <PropertyEntryForm />
-                  </FormProvider>
-                }
-              />
             </Routes>
           </DashboardAuth>
         </Router>

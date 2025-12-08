@@ -22,7 +22,10 @@ export const FormProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return stored ? JSON.parse(stored) : initialFormData;
   });
 
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(() => {
+    const stored = sessionStorage.getItem('property_entry_current_step');
+    return stored ? parseInt(stored, 10) : 1;
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const stored = sessionStorage.getItem(AUTH_STORAGE_KEY);
     return stored === 'true';
@@ -36,14 +39,19 @@ export const FormProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sessionStorage.setItem(AUTH_STORAGE_KEY, isAuthenticated.toString());
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    sessionStorage.setItem('property_entry_current_step', currentStep.toString());
+  }, [currentStep]);
+
   const updateFormData = (data: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
   };
 
   const resetFormData = () => {
     setFormData(initialFormData);
-    setCurrentStep(0);
+    setCurrentStep(1);
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem('property_entry_current_step');
   };
 
   return (
