@@ -40,15 +40,17 @@ export interface Property {
 
 export interface PartnerDeveloper {
   id: number;
+  source_id: number | null;
   name: string;
-  email: string | null;
-  phone: string | null;
-  office_address: string | null;
-  website: string | null;
-  logo_url: string | null;
   description: string | null;
-  working_hours: string | null;
+  email: string | null;
+  website: string | null;
+  office_address: string | null;
+  logo_url: string | null;
+  working_hours: any | null; // JSONB - can be object, array, or null
+  raw_data: any | null; // JSONB
   created_at: string;
+  updated_at: string;
 }
 
 export interface PropertyImage {

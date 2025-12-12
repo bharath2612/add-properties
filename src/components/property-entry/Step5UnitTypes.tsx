@@ -2,6 +2,7 @@ import React from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { UnitType } from '../../types/property.types';
 import { inputClasses, labelClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
+import FileUpload from './FileUpload';
 
 const Step5UnitTypes: React.FC = () => {
   const { formData, updateFormData } = useFormContext();
@@ -163,15 +164,13 @@ const Step5UnitTypes: React.FC = () => {
             </div>
 
             <div className="md:col-span-2 space-y-2">
-              <label className={labelClasses}>
-                Unit Image URL
-              </label>
-              <input
-                type="url"
-                value={unit.typical_unit_image_url}
-                onChange={(e) => updateUnitType(unit.id, 'typical_unit_image_url', e.target.value)}
-                className={inputClasses}
-                placeholder="https://example.com/unit.jpg"
+              <FileUpload
+                label="Unit Image"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                category="image"
+                onUploadComplete={(url) => updateUnitType(unit.id, 'typical_unit_image_url', url)}
+                currentUrl={unit.typical_unit_image_url}
+                helpText="Upload a typical unit image (Max 5MB)"
               />
             </div>
           </div>

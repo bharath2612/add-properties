@@ -2,6 +2,7 @@ import React from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { Building, Facility, MapPoint } from '../../types/property.types';
 import { inputClasses, labelClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
+import FileUpload from './FileUpload';
 
 const Step6Amenities: React.FC = () => {
   const { formData, updateFormData } = useFormContext();
@@ -132,13 +133,13 @@ const Step6Amenities: React.FC = () => {
               </div>
 
               <div className="md:col-span-2 space-y-2">
-                <label className={labelClasses}>Image URL</label>
-                <input
-                  type="url"
-                  value={building.building_image_url}
-                  onChange={(e) => updateBuilding(building.id, 'building_image_url', e.target.value)}
-                  className={inputClasses}
-                  placeholder="https://example.com/building.jpg"
+                <FileUpload
+                  label="Building Image"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  category="image"
+                  onUploadComplete={(url) => updateBuilding(building.id, 'building_image_url', url)}
+                  currentUrl={building.building_image_url}
+                  helpText="Upload building image (Max 5MB)"
                 />
               </div>
             </div>
@@ -196,13 +197,13 @@ const Step6Amenities: React.FC = () => {
               </div>
 
               <div className="md:col-span-2 space-y-2">
-                <label className={labelClasses}>Image URL</label>
-                <input
-                  type="url"
-                  value={facility.facility_image_url}
-                  onChange={(e) => updateFacility(facility.id, 'facility_image_url', e.target.value)}
-                  className={inputClasses}
-                  placeholder="https://example.com/facility.jpg"
+                <FileUpload
+                  label="Facility Image"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  category="image"
+                  onUploadComplete={(url) => updateFacility(facility.id, 'facility_image_url', url)}
+                  currentUrl={facility.facility_image_url}
+                  helpText="Upload facility image (Max 5MB)"
                 />
               </div>
             </div>

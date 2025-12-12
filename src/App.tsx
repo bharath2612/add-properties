@@ -6,6 +6,7 @@ import DashboardAuth from './components/dashboard/DashboardAuth';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import HomePage from './components/dashboard/HomePage';
 import PropertiesPage from './components/dashboard/PropertiesPage';
+import DevelopersPage from './components/dashboard/DevelopersPage';
 import PropertyDetailsPage from './components/dashboard/PropertyDetailsPage';
 import PropertyEntryForm from './components/property-entry/PropertyEntryForm';
 
@@ -20,6 +21,7 @@ function App() {
               <Route path="/" element={<DashboardLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="properties" element={<PropertiesPage />} />
+                <Route path="developers" element={<DevelopersPage />} />
                 <Route
                   path="add-property"
                   element={

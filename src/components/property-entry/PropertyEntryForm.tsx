@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { supabase } from '../../lib/supabase';
 import { submitProperty } from '../../utils/propertySubmission';
-import { validateFormData, formatValidationErrors } from '../../utils/validation';
+// Legacy validation kept for backward compatibility
+// import { validateFormData, formatValidationErrors } from '../../utils/validation';
+import { buildPropertyPayload, validatePropertyForm } from '../../utils/propertyFormHelpers';
+import { convertToPropertyFormData, convertToOldFormData } from '../../utils/formDataAdapter';
+import { ValidationIssue } from '../../types/property-form.types';
+import { useToast, ToastContainer } from '../common/Toast';
 import ProgressBar from './ProgressBar';
 import StepNavigation from './StepNavigation';
 import Step1Basic from './Step1Basic';
@@ -13,7 +18,7 @@ import Step5UnitTypes from './Step5UnitTypes';
 import Step6Amenities from './Step6Amenities';
 import Step7Media from './Step7Media';
 import Step8PaymentParking from './Step8PaymentParking';
-import Step9Developer from './Step9Developer';
+import Step9Overview from './Step9Developer';
 
 const TOTAL_STEPS = 9;
 
@@ -21,6 +26,11 @@ const PropertyEntryForm: React.FC = () => {
   const { formData, currentStep, setCurrentStep, resetFormData } = useFormContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [dryRun, setDryRun] = useState(false);
+  const [showDryRunModal, setShowDryRunModal] = useState(false);
+  const [dryRunPayload, setDryRunPayload] = useState<any>(null);
+  const [dryRunIssues, setDryRunIssues] = useState<ValidationIssue[]>([]);
+  const { toasts, removeToast, success, error: showError } = useToast();
 
   // Ensure currentStep is at least 1
   useEffect(() => {
@@ -86,29 +96,87 @@ const PropertyEntryForm: React.FC = () => {
     setSubmitStatus(null);
 
     try {
-      // First validate all data
-      const validationErrors = validateFormData(formData);
-      if (validationErrors.length > 0) {
-        const errorMessage = formatValidationErrors(validationErrors);
-        setSubmitStatus({
-          type: 'error',
-          message: errorMessage,
-        });
+      // Convert old FormData to new PropertyFormData structure
+      const propertyFormData = convertToPropertyFormData(formData);
+
+      // Build payload using the new helper
+      const payload = buildPropertyPayload(propertyFormData);
+
+      // Validate using the new validation function
+      const issues = validatePropertyForm(propertyFormData);
+
+      // Check for errors (block submission if any)
+      const errors = issues.filter(issue => issue.severity === 'error');
+      if (errors.length > 0) {
+        const errorMessages = errors.map(e => `${e.path}: ${e.message}`).join('\n');
+        showError(`Please fix the following errors:\n${errorMessages}`, 8000);
         setIsSubmitting(false);
         return;
       }
 
+      // If dry run mode, show modal instead of submitting
+      if (dryRun) {
+        setDryRunPayload(payload);
+        setDryRunIssues(issues);
+        setShowDryRunModal(true);
+        setIsSubmitting(false);
+        console.log('DRY RUN PAYLOAD', payload);
+        console.log('DRY RUN ISSUES', issues);
+        return;
+      }
+
+      // Show warnings if any (but allow submission)
+      const warnings = issues.filter(issue => issue.severity === 'warning');
+      if (warnings.length > 0) {
+        const warningMessages = warnings.map(w => `${w.path}: ${w.message}`).join('\n');
+        console.warn('Validation warnings:', warningMessages);
+        // Optionally show warnings in UI
+      }
+
+      // Convert back to old FormData for backward compatibility with submitProperty
+      // TODO: Update submitProperty to accept new payload structure
+      const oldFormData = convertToOldFormData(propertyFormData);
+
+      // Check for blob URLs that need to be uploaded first
+      const blobUrlFields: string[] = [];
+      if (oldFormData.video_url && oldFormData.video_url.startsWith('blob:')) {
+        blobUrlFields.push('Video URL');
+      }
+      if (oldFormData.brochure_url && oldFormData.brochure_url.startsWith('blob:')) {
+        blobUrlFields.push('Brochure PDF');
+      }
+      if (oldFormData.layouts_pdf && oldFormData.layouts_pdf.startsWith('blob:')) {
+        blobUrlFields.push('Floor Plans PDF');
+      }
+      if (oldFormData.cover_url && oldFormData.cover_url.startsWith('blob:')) {
+        blobUrlFields.push('Cover Image');
+      }
+
+      if (blobUrlFields.length > 0) {
+        showError(
+          `Please upload the following files properly (they are currently temporary blob URLs): ${blobUrlFields.join(', ')}. Files must be uploaded to storage before submission.`,
+          10000
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Debug: Log parking field to ensure it's being passed
+      console.log('Form data before submission:', {
+        parking_specs: oldFormData.parking_specs,
+        brochure_url: oldFormData.brochure_url,
+        layouts_pdf: oldFormData.layouts_pdf,
+        video_url: oldFormData.video_url,
+      });
+
       // Submit property and all related data
-      const result = await submitProperty(supabase, formData);
+      const result = await submitProperty(supabase, oldFormData);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit property');
       }
 
-      setSubmitStatus({
-        type: 'success',
-        message: `Property "${formData.name}" has been successfully added! Property ID: ${result.propertyId}. All related data has been saved.`,
-      });
+      success(`Property "${formData.name}" has been successfully added! Property ID: ${result.propertyId}. All related data has been saved.`, 5000);
 
       // Reset form after 5 seconds
       setTimeout(() => {
@@ -117,9 +185,11 @@ const PropertyEntryForm: React.FC = () => {
       }, 5000);
     } catch (error: any) {
       console.error('Submission error:', error);
+      const errorMessage = error.message || 'Failed to submit property. Please check your data and try again.';
+      showError(errorMessage, 8000);
       setSubmitStatus({
         type: 'error',
-        message: error.message || 'Failed to submit property. Please check your data and try again.',
+        message: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -150,7 +220,7 @@ const PropertyEntryForm: React.FC = () => {
       case 8:
         return <Step8PaymentParking />;
       case 9:
-        return <Step9Developer />;
+        return <Step9Overview />;
       default:
         return <Step1Basic />;
     }
@@ -171,6 +241,20 @@ const PropertyEntryForm: React.FC = () => {
 
         {/* Main Form Card */}
         <div className="bg-white dark:bg-black border border-gray-200 dark:border-zinc-900 rounded-lg p-4 md:p-8">
+          {/* Dry Run Checkbox */}
+          <div className="mb-6 flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dry-run"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+            <label htmlFor="dry-run" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+              Dry run (do NOT save, just show what will be stored)
+            </label>
+          </div>
+
           <ProgressBar currentStep={currentStep} totalSteps={TOTAL_STEPS} />
 
           {/* Success/Error Messages */}
@@ -227,6 +311,100 @@ const PropertyEntryForm: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Dry Run Modal */}
+      {showDryRunModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-zinc-800">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-black dark:text-white">Dry Run Results</h2>
+                <button
+                  onClick={() => setShowDryRunModal(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Validation Issues */}
+              {dryRunIssues.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-black dark:text-white">Validation Issues</h3>
+                  <div className="space-y-2">
+                    {dryRunIssues.map((issue, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-lg ${
+                          issue.severity === 'error'
+                            ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                            : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={`font-semibold ${
+                              issue.severity === 'error'
+                                ? 'text-red-800 dark:text-red-300'
+                                : 'text-yellow-800 dark:text-yellow-300'
+                            }`}
+                          >
+                            {issue.severity === 'error' ? '❌' : '⚠️'}
+                          </span>
+                          <div className="flex-1">
+                            <p
+                              className={`font-medium ${
+                                issue.severity === 'error'
+                                  ? 'text-red-800 dark:text-red-300'
+                                  : 'text-yellow-800 dark:text-yellow-300'
+                              }`}
+                            >
+                              {issue.path}
+                            </p>
+                            <p
+                              className={`text-sm ${
+                                issue.severity === 'error'
+                                  ? 'text-red-700 dark:text-red-400'
+                                  : 'text-yellow-700 dark:text-yellow-400'
+                              }`}
+                            >
+                              {issue.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Payload JSON */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-black dark:text-white">Payload (JSON)</h3>
+                <pre className="bg-gray-100 dark:bg-zinc-800 p-4 rounded-lg overflow-x-auto text-xs text-gray-800 dark:text-gray-200">
+                  {JSON.stringify(dryRunPayload, null, 2)}
+                </pre>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 dark:border-zinc-800 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDryRunModal(false)}
+                className="px-4 py-2 bg-gray-200 dark:bg-zinc-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 };

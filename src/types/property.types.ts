@@ -44,7 +44,7 @@ export interface FormData {
   external_id: string;
   name: string;
   slug: string;
-  developer: string;
+  developer_id: number | null; // Changed from developer: string
 
   // Step 2: Location & Contact
   area: string;
@@ -91,22 +91,15 @@ export interface FormData {
   paymentPlans: PaymentPlan[];
   parking_specs: string;
 
-  // Step 9: Developer & Description
+  // Step 9: Overview & Description (Developer section removed)
   overview: string;
-  developer_email: string;
-  developer_phone: string;
-  developer_office: string;
-  developer_description: string;
-  developer_website: string;
-  developer_logo_url: string;
-  developer_working_hours: string;
 }
 
 export const initialFormData: FormData = {
   external_id: '',
   name: '',
   slug: '',
-  developer: '',
+  developer_id: null,
   area: '',
   city: '',
   country: '',
@@ -139,12 +132,5 @@ export const initialFormData: FormData = {
   paymentPlans: [],
   parking_specs: '',
   overview: '',
-  developer_email: '',
-  developer_phone: '',
-  developer_office: '',
-  developer_description: '',
-  developer_website: '',
-  developer_logo_url: '',
-  developer_working_hours: '',
 };
 

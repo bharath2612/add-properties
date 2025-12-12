@@ -16,8 +16,8 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
   if (!formData.name || formData.name.trim() === '') {
     errors.push({ field: 'name', message: 'Property Name is required', step: 1 });
   }
-  if (!formData.developer || formData.developer.trim() === '') {
-    errors.push({ field: 'developer', message: 'Developer is required', step: 1 });
+  if (!formData.developer_id || formData.developer_id === null) {
+    errors.push({ field: 'developer_id', message: 'Developer is required', step: 1 });
   }
 
   // Step 2: Location - MANDATORY

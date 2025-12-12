@@ -52,6 +52,7 @@ const Step4Pricing: React.FC = () => {
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
             <option value="GBP">GBP</option>
+            <option value="INR">INR</option>
           </select>
         </div>
 
