@@ -312,8 +312,6 @@ export const submitProperty = async (
       const validMapPoints = formData.mapPoints
         .filter(point => point && point.poi_name && point.poi_name.trim())
         .map(point => {
-          // Explicitly destructure to exclude 'id' and create a clean object
-          const { id, ...pointWithoutId } = point as any;
           // Create a completely fresh object with ONLY the fields the database expects
           return {
             property_id: property_id,
@@ -326,10 +324,9 @@ export const submitProperty = async (
         // Log what we're about to insert for debugging
         console.log('Inserting map points:', JSON.stringify(validMapPoints, null, 2));
         
-        const { data, error: mapPointsError } = await supabase
+        const { error: mapPointsError } = await supabase
           .from('property_map_points')
-          .insert(validMapPoints)
-          .select();
+          .insert(validMapPoints);
 
         if (mapPointsError) {
           console.error('Map points insertion error:', {

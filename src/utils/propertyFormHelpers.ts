@@ -2,7 +2,6 @@ import {
   PropertyFormData,
   FrontendPropertyPayload,
   ValidationIssue,
-  ImageInput,
   BuildingFormData,
   UnitBlockFormData,
   PaymentPlanFormData,

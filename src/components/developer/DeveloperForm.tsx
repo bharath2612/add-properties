@@ -19,7 +19,7 @@ const DeveloperForm: React.FC<DeveloperFormProps> = ({
   onSuccess,
   onClose,
 }) => {
-  const { showSuccess, showError } = useToast();
+  const { success, error } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<DeveloperFormData>({
     name: '',
@@ -71,7 +71,7 @@ const DeveloperForm: React.FC<DeveloperFormProps> = ({
       }
 
       if (result.success && result.developer) {
-        showSuccess(
+        success(
           developer
             ? `Developer "${result.developer.name}" updated successfully!`
             : `Developer "${result.developer.name}" created successfully!`,
@@ -80,10 +80,10 @@ const DeveloperForm: React.FC<DeveloperFormProps> = ({
         onSuccess(result.developer);
         onClose();
       } else {
-        showError(result.error || 'Failed to save developer', 5000);
+        error(result.error || 'Failed to save developer', 5000);
       }
-    } catch (error: any) {
-      showError(error.message || 'An unexpected error occurred', 5000);
+    } catch (err: any) {
+      error(err.message || 'An unexpected error occurred', 5000);
     } finally {
       setIsSubmitting(false);
     }

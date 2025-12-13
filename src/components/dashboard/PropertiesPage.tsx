@@ -382,7 +382,7 @@ const PropertiesPage: React.FC = () => {
                         {property.status || 'N/A'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 dark:text-zinc-500">{formatDate(property.created_at)}</td>
+                    <td className="py-3 px-4 text-xs text-gray-500 dark:text-zinc-500">{formatDate(property.created_at || '')}</td>
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Link

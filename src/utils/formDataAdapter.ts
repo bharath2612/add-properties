@@ -35,10 +35,10 @@ export function convertToPropertyFormData(oldData: FormData): PropertyFormData {
     ? { url: oldData.cover_url } 
     : null;
 
-  // Convert image_urls string to array of ImageInput
-  const additionalImages: ImageInput[] = oldData.image_urls
-    ? oldData.image_urls.split(',').map(url => url.trim()).filter(Boolean).map(url => ({ url }))
-    : [];
+  // Convert image_urls string to array of ImageInput (commented out as not currently used)
+  // const additionalImages: ImageInput[] = oldData.image_urls
+  //   ? oldData.image_urls.split(',').map(url => url.trim()).filter(Boolean).map(url => ({ url }))
+  //   : [];
 
   // Convert developer data - if developer_id exists, we'll need to fetch developer data
   // For now, create empty developer object (will be populated if needed)

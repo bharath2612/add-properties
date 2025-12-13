@@ -45,7 +45,7 @@ const PropertyEntryForm: React.FC = () => {
         return !!(
           formData.external_id?.trim() && 
           formData.name?.trim() && 
-          formData.developer?.trim()
+          formData.developer_id
         );
       case 2:
         return !!formData.area?.trim();

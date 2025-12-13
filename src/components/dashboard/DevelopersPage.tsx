@@ -6,7 +6,7 @@ import DeveloperForm from '../developer/DeveloperForm';
 import { useToast, ToastContainer } from '../common/Toast';
 
 const DevelopersPage: React.FC = () => {
-  const { showSuccess, showError, toasts, removeToast } = useToast();
+  const { success, error, toasts, removeToast } = useToast();
   const [developers, setDevelopers] = useState<PartnerDeveloper[]>([]);
   const [filteredDevelopers, setFilteredDevelopers] = useState<PartnerDeveloper[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,15 +22,15 @@ const DevelopersPage: React.FC = () => {
   const loadDevelopers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await fetchDevelopers(supabase);
-      if (error) {
-        showError(`Failed to load developers: ${error.message}`, 5000);
+      const { data, error: fetchError } = await fetchDevelopers(supabase);
+      if (fetchError) {
+        error(`Failed to load developers: ${fetchError.message}`, 5000);
       } else {
         setDevelopers(data || []);
         setFilteredDevelopers(data || []);
       }
-    } catch (error: any) {
-      showError(`Error loading developers: ${error.message}`, 5000);
+    } catch (err: any) {
+      error(`Error loading developers: ${err.message}`, 5000);
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ const DevelopersPage: React.FC = () => {
     setFilteredDevelopers(filtered);
   }, [searchQuery, developers]);
 
-  const handleDeveloperSaved = (developer: PartnerDeveloper) => {
+  const handleDeveloperSaved = (_developer: PartnerDeveloper) => {
     loadDevelopers();
     setShowForm(false);
     setEditingDeveloper(null);
@@ -82,13 +82,13 @@ const DevelopersPage: React.FC = () => {
     try {
       const result = await deleteDeveloper(supabase, developer.id);
       if (result.success) {
-        showSuccess(`Developer "${developer.name}" deleted successfully`, 3000);
+        success(`Developer "${developer.name}" deleted successfully`, 3000);
         loadDevelopers();
       } else {
-        showError(result.error || 'Failed to delete developer', 5000);
+        error(result.error || 'Failed to delete developer', 5000);
       }
     } catch (error: any) {
-      showError(error.message || 'An unexpected error occurred', 5000);
+      error(error.message || 'An unexpected error occurred', 5000);
     } finally {
       setDeletingId(null);
     }

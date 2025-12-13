@@ -22,6 +22,7 @@ function App() {
                 <Route index element={<HomePage />} />
                 <Route path="properties" element={<PropertiesPage />} />
                 <Route path="developers" element={<DevelopersPage />} />
+                <Route path="property/:slug" element={<PropertyDetailsPage />} />
                 <Route
                   path="add-property"
                   element={
@@ -31,9 +32,6 @@ function App() {
                   }
                 />
               </Route>
-              
-              {/* Property Details Route (Full Screen) */}
-              <Route path="/property/:slug" element={<PropertyDetailsPage />} />
             </Routes>
           </DashboardAuth>
         </Router>
