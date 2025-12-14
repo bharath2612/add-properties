@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+// Import authenticated supabase wrapper
+export { authenticatedSupabase as supabase } from './supabaseAuth';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+// Keep ACCESS_CODE for backward compatibility (may be used elsewhere)
 export const ACCESS_CODE = import.meta.env.VITE_PROPERTY_ENTRY_ACCESS_CODE || '';
 

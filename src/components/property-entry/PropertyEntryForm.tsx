@@ -120,8 +120,6 @@ const PropertyEntryForm: React.FC = () => {
         setDryRunIssues(issues);
         setShowDryRunModal(true);
         setIsSubmitting(false);
-        console.log('DRY RUN PAYLOAD', payload);
-        console.log('DRY RUN ISSUES', issues);
         return;
       }
 
@@ -160,14 +158,6 @@ const PropertyEntryForm: React.FC = () => {
         setIsSubmitting(false);
         return;
       }
-
-      // Debug: Log parking field to ensure it's being passed
-      console.log('Form data before submission:', {
-        parking_specs: oldFormData.parking_specs,
-        brochure_url: oldFormData.brochure_url,
-        layouts_pdf: oldFormData.layouts_pdf,
-        video_url: oldFormData.video_url,
-      });
 
       // Submit property and all related data
       const result = await submitProperty(supabase, oldFormData);

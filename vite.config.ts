@@ -13,6 +13,26 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    alias: {
+      buffer: 'buffer',
+      crypto: 'crypto-browserify',
+      process: 'process/browser',
+    },
+  },
+  define: {
+    global: 'globalThis',
+    'process.env': '{}',
+    'process.browser': 'true',
+  },
+  optimizeDeps: {
+    include: ['buffer', 'process'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
   // Ensure public directory is copied
   publicDir: 'public',
   // Development server configuration
