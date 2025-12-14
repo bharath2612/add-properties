@@ -16,16 +16,6 @@ async function initQRCode() {
   }
 }
 
-// Fallback secret generator if otplib fails
-function generateFallbackSecret(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; // Base32 alphabet
-  let secret = '';
-  for (let i = 0; i < 32; i++) {
-    secret += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return secret;
-}
-
 // Get TOTP secret from database only (NO localStorage for security)
 export async function getOrCreateTOTPSecret(): Promise<string> {
   // Only get from database - NO localStorage fallback for security
