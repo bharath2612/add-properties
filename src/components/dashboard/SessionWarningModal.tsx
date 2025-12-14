@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const WARNING_TIME_SECONDS = 60; // Show warning 1 minute before expiry
+const WARNING_TIME_SECONDS = 30; // Show warning 30 seconds before idle timeout
 
 const SessionWarningModal: React.FC = () => {
-  const { getRemainingTime, extendSession, logout, isAuthenticated } = useAuth();
+  const { getRemainingTime, updateActivity, logout, isAuthenticated } = useAuth();
   const [remainingSeconds, setRemainingSeconds] = useState(300);
   const [showWarning, setShowWarning] = useState(false);
 
@@ -32,7 +32,7 @@ const SessionWarningModal: React.FC = () => {
   }, [isAuthenticated, getRemainingTime, logout]);
 
   const handleStayLoggedIn = () => {
-    extendSession();
+    updateActivity(); // Reset idle timer
     setShowWarning(false);
   };
 

@@ -5,24 +5,24 @@ interface AuthContextType {
   login: () => boolean;
   logout: () => void;
   checkAuth: () => boolean;
-  extendSession: () => void;
-  getRemainingTime: () => number; // Returns seconds remaining
+  updateActivity: () => void; // Update last activity time (replaces extendSession)
+  getRemainingTime: () => number; // Returns seconds remaining until idle timeout
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_STORAGE_KEY = 'dashboard_auth_session';
-const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes of inactivity
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [sessionExpiry, setSessionExpiry] = useState<number | null>(null);
+  const [lastActivityTime, setLastActivityTime] = useState<number | null>(null);
 
   // Logout function (defined early for use in useEffect)
   const logout = useCallback(() => {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setIsAuthenticated(false);
-    setSessionExpiry(null);
+    setLastActivityTime(null);
   }, []);
 
   // Initialize auth state from session storage
@@ -30,13 +30,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sessionData = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (sessionData) {
       try {
-        const { expiry } = JSON.parse(sessionData);
+        const { lastActivity } = JSON.parse(sessionData);
         const now = Date.now();
-        if (expiry > now) {
+        const timeSinceActivity = now - lastActivity;
+        
+        if (timeSinceActivity < IDLE_TIMEOUT_MS) {
+          // Still within idle timeout, restore session
           setIsAuthenticated(true);
-          setSessionExpiry(expiry);
+          setLastActivityTime(lastActivity);
         } else {
-          // Session expired
+          // Idle timeout exceeded
           logout();
         }
       } catch (error) {
@@ -47,81 +50,102 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [logout]);
 
   // Save session to storage
-  const saveSession = useCallback((expiry: number) => {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ expiry }));
-    setSessionExpiry(expiry);
+  const saveSession = useCallback((activityTime: number) => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ lastActivity: activityTime }));
+    setLastActivityTime(activityTime);
   }, []);
 
   // Login function
   const login = useCallback((): boolean => {
     // Token is already verified in DashboardAuth component
-    const expiry = Date.now() + SESSION_TIMEOUT_MS;
-    saveSession(expiry);
+    const now = Date.now();
+    saveSession(now);
     setIsAuthenticated(true);
     return true;
   }, [saveSession]);
 
-  // Extend session on activity
-  const extendSession = useCallback(() => {
+  // Update last activity time on user interaction
+  const updateActivity = useCallback(() => {
     if (isAuthenticated) {
-      const newExpiry = Date.now() + SESSION_TIMEOUT_MS;
-      saveSession(newExpiry);
+      const now = Date.now();
+      saveSession(now);
     }
   }, [isAuthenticated, saveSession]);
 
-  // Check if still authenticated
+  // Check if still authenticated (not idle)
   const checkAuth = useCallback((): boolean => {
-    if (!isAuthenticated || !sessionExpiry) {
+    if (!isAuthenticated || !lastActivityTime) {
       return false;
     }
     
     const now = Date.now();
-    if (now >= sessionExpiry) {
+    const timeSinceActivity = now - lastActivityTime;
+    
+    if (timeSinceActivity >= IDLE_TIMEOUT_MS) {
+      // Idle timeout exceeded
       logout();
       return false;
     }
     
     return true;
-  }, [isAuthenticated, sessionExpiry, logout]);
+  }, [isAuthenticated, lastActivityTime, logout]);
 
   // Get remaining time in seconds
   const getRemainingTime = useCallback((): number => {
-    if (!sessionExpiry) return 0;
-    const remaining = Math.max(0, Math.floor((sessionExpiry - Date.now()) / 1000));
+    if (!lastActivityTime) return 0;
+    const timeSinceActivity = Date.now() - lastActivityTime;
+    const remaining = Math.max(0, Math.floor((IDLE_TIMEOUT_MS - timeSinceActivity) / 1000));
     return remaining;
-  }, [sessionExpiry]);
+  }, [lastActivityTime]);
 
-  // Activity tracking - extend session on user interaction
+  // Activity tracking - update last activity time on user interaction
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'keydown', 'scroll', 'touchstart', 'click', 'focus'];
     
     const handleActivity = () => {
-      extendSession();
+      updateActivity();
+    };
+
+    // Throttle activity updates to avoid excessive storage writes
+    let activityTimeout: NodeJS.Timeout;
+    const throttledActivity = () => {
+      clearTimeout(activityTimeout);
+      activityTimeout = setTimeout(handleActivity, 1000); // Update at most once per second
     };
 
     activityEvents.forEach(event => {
-      window.addEventListener(event, handleActivity, { passive: true });
+      window.addEventListener(event, throttledActivity, { passive: true });
     });
 
-    return () => {
-      activityEvents.forEach(event => {
-        window.removeEventListener(event, handleActivity);
-      });
+    // Also track visibility changes (tab focus)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateActivity();
+      }
     };
-  }, [isAuthenticated, extendSession]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  // Session expiry check - run every 10 seconds
+    return () => {
+      clearTimeout(activityTimeout);
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, throttledActivity);
+      });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated, updateActivity]);
+
+  // Idle timeout check - run every 5 seconds
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const interval = setInterval(() => {
       if (!checkAuth()) {
-        // Session expired, logout will be called by checkAuth
-        console.log('Session expired');
+        // Idle timeout exceeded, logout will be called by checkAuth
+        console.log('User logged out due to inactivity');
       }
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds
 
     return () => clearInterval(interval);
   }, [isAuthenticated, checkAuth]);
@@ -133,7 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         checkAuth,
-        extendSession,
+        updateActivity,
         getRemainingTime,
       }}
     >
