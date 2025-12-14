@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { verifyTOTP } from '../../utils/auth2fa';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -32,7 +32,7 @@ const DashboardAuth: React.FC = () => {
       const { getTOTPSecret } = await import('../../utils/auth2fa');
       const secret = await getTOTPSecret();
       if (!secret) {
-        setError('2FA is not set up. Please go to /2fa-setup to set it up first.');
+        setError('2FA secret not found in database. Please contact your administrator.');
         setLoading(false);
         return;
       }
@@ -164,12 +164,7 @@ const DashboardAuth: React.FC = () => {
         <div className="mt-6 text-center text-xs text-gray-500 dark:text-zinc-500 space-y-2">
           <p>🔒 Two-Factor Authentication Required</p>
           <p>Get the code from your authenticator app (Google Authenticator, Authy, etc.)</p>
-          <Link 
-            to="/2fa-setup" 
-            className="inline-block mt-2 text-blue-600 dark:text-blue-400 hover:underline text-sm"
-          >
-            Need to set up 2FA? Click here
-          </Link>
+          <p className="text-gray-400 dark:text-zinc-600">Contact your administrator to get the 2FA secret</p>
         </div>
       </div>
     </div>

@@ -11,7 +11,6 @@ import PropertiesPage from './components/dashboard/PropertiesPage';
 import DevelopersPage from './components/dashboard/DevelopersPage';
 import PropertyDetailsPage from './components/dashboard/PropertyDetailsPage';
 import PropertyEntryForm from './components/property-entry/PropertyEntryForm';
-import TwoFASetup from './components/dashboard/TwoFASetup';
 import { setAuthCheckCallback } from './lib/supabaseAuth';
 import { useEffect } from 'react';
 
@@ -44,17 +43,13 @@ function App() {
             <AuthSetup>
               <Router>
                 <Routes>
-                  {/* 2FA Setup - Accessible without authentication for initial setup */}
-                  <Route path="/2fa-setup" element={<TwoFASetup />} />
-                  
-                  {/* All other routes require authentication */}
+                  {/* All routes require authentication */}
                   <Route path="/*" element={<DashboardAuth />}>
                     <Route path="*" element={<DashboardLayout />}>
                       <Route index element={<HomePage />} />
                       <Route path="properties" element={<PropertiesPage />} />
                       <Route path="developers" element={<DevelopersPage />} />
                       <Route path="property/:slug" element={<PropertyDetailsPage />} />
-                      <Route path="2fa-setup" element={<TwoFASetup />} />
                       <Route
                         path="add-property"
                         element={

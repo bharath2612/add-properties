@@ -29,7 +29,7 @@ export async function getOrCreateTOTPSecret(): Promise<string> {
     // Error fetching from DB
   }
   
-  throw new Error('2FA secret not found in database. Please set it up via /2fa-setup page.');
+  throw new Error('2FA secret not found in database. Please contact your administrator.');
 }
 
 // Synchronous version - NOT RECOMMENDED, throws error to force async DB call
