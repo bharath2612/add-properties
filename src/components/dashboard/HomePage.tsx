@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -17,6 +17,7 @@ const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
 const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
 
 const HomePage: React.FC = () => {
+  const location = useLocation();
   const [analytics, setAnalytics] = useState<Analytics>({
     totalProperties: 0,
     underConstruction: 0,
@@ -27,12 +28,17 @@ const HomePage: React.FC = () => {
     developerStats: [],
   });
   const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    // Always fetch when on home route
+    if (location.pathname === '/') {
+      fetchAnalytics();
+    }
+  }, [location.pathname]);
 
   const fetchAnalytics = async () => {
+    setLoading(true);
     try {
       // Run all queries in parallel for maximum speed
       const [

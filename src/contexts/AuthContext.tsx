@@ -12,7 +12,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_STORAGE_KEY = 'dashboard_auth_session';
-const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes of inactivity
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes of inactivity
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

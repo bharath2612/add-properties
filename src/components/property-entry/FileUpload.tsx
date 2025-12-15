@@ -10,6 +10,7 @@ interface FileUploadProps {
   helpText?: string;
   multiple?: boolean;
   onMultipleUploadComplete?: (urls: string[]) => void;
+  hidePreview?: boolean;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -21,6 +22,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   helpText,
   multiple = false,
   onMultipleUploadComplete,
+  hidePreview = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -218,16 +220,17 @@ const FileUpload: React.FC<FileUploadProps> = ({
         </div>
       )}
 
-      {(currentUrl || uploadedUrls.length > 0) && (
+      {!hidePreview && (currentUrl || uploadedUrls.length > 0) && (
         <div className="mt-3 space-y-2">
-          {category === 'image' && currentUrl && (
+          {category === 'image' && (currentUrl || uploadedUrls[0]) && (
             <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700">
               <img
-                src={currentUrl}
+                src={currentUrl || uploadedUrls[0]}
                 alt="Preview"
                 className="w-full h-48 object-cover"
                 onError={(e) => {
-                  console.error('❌ Failed to load image:', currentUrl);
+                  const imageUrl = currentUrl || uploadedUrls[0];
+                  console.error('❌ Failed to load image:', imageUrl);
                   console.error('Error event:', e);
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses } from './sharedStyles';
 import FileUpload from './FileUpload';
@@ -9,10 +9,20 @@ const Step7Media: React.FC = () => {
     formData.image_urls ? formData.image_urls.split(',').map(url => url.trim()).filter(Boolean) : []
   );
 
+  // Sync local state with formData when it changes externally
+  useEffect(() => {
+    const images = formData.image_urls 
+      ? formData.image_urls.split(',').map(url => url.trim()).filter(Boolean)
+      : [];
+    setAdditionalImages(images);
+  }, [formData.image_urls]);
+
   const handleAdditionalImagesUpload = (urls: string[]) => {
     const allImages = [...additionalImages, ...urls];
     setAdditionalImages(allImages);
-    updateFormData({ image_urls: allImages.join(',') });
+    const imageUrlsString = allImages.join(',');
+    console.log('Updating image_urls:', { urls, allImages, imageUrlsString });
+    updateFormData({ image_urls: imageUrlsString });
   };
 
   const removeImage = (index: number) => {
@@ -35,8 +45,10 @@ const Step7Media: React.FC = () => {
             label="Cover Image"
             accept="image/jpeg,image/jpg,image/png,image/webp"
             category="image"
+            currentUrl={formData.cover_url}
             onUploadComplete={(url) => updateFormData({ cover_url: url })}
             helpText="Main property cover image (Max 5MB) - Required"
+            hidePreview={true}
           />
           {!formData.cover_url && (
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">
@@ -47,22 +59,29 @@ const Step7Media: React.FC = () => {
           {formData.cover_url && (
             <div className="mt-4">
               <p className="text-sm font-medium text-gray-700 dark:text-zinc-300 mb-3">
-                Cover Image:
+                Uploaded Cover Image:
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div className="relative group">
-                  <img
-                    src={formData.cover_url}
-                    alt="Cover Image"
-                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
+                <div key="cover" className="relative group">
+                  <div className="aspect-video w-full overflow-hidden rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800">
+                    <img
+                      src={formData.cover_url}
+                      alt="Cover Image"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400 text-sm">Failed to load image</div>';
+                        }
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => updateFormData({ cover_url: '' })}
-                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    title="Remove cover image"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -84,6 +103,7 @@ const Step7Media: React.FC = () => {
             onMultipleUploadComplete={handleAdditionalImagesUpload}
             onUploadComplete={(url) => handleAdditionalImagesUpload([url])}
             helpText="Upload at least one additional property image (Max 5MB each) - Required"
+            hidePreview={true}
           />
           {additionalImages.length === 0 && (
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">
@@ -98,19 +118,26 @@ const Step7Media: React.FC = () => {
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {additionalImages.map((url, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={url}
-                      alt={`Property ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-zinc-700"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                  <div key={`additional-${index}-${url}`} className="relative group">
+                    <div className="aspect-video w-full overflow-hidden rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-100 dark:bg-zinc-800">
+                      <img
+                        src={url}
+                        alt={`Additional Image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const parent = (e.target as HTMLImageElement).parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400 text-sm">Failed to load image</div>';
+                          }
+                        }}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
-                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                      title="Remove image"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

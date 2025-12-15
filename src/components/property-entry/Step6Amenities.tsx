@@ -1,8 +1,91 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { Building, Facility, MapPoint } from '../../types/property.types';
-import { inputClasses, labelClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
+import { inputClasses, labelClasses, helpTextClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
 import FileUpload from './FileUpload';
+import { uploadToR2 } from '../../utils/r2Upload';
+
+// Compact image upload component for inline use
+const CompactImageUpload: React.FC<{
+  currentUrl?: string;
+  onUploadComplete: (url: string) => void;
+}> = ({ currentUrl, onUploadComplete }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const result = await uploadToR2(file, 'image');
+      if (result.success && result.url) {
+        onUploadComplete(result.url);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  if (currentUrl) {
+    return (
+      <div className="relative">
+        <img
+          src={currentUrl}
+          alt="Facility"
+          className="w-full h-10 object-cover rounded-lg border border-gray-300 dark:border-zinc-800"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity rounded-lg text-white text-xs"
+        >
+          {uploading ? 'Uploading...' : 'Change'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => fileInputRef.current?.click()}
+      disabled={uploading}
+      className={`w-full ${inputClasses} flex items-center justify-center gap-2 h-[42px] ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-900'}`}
+    >
+      {uploading ? (
+        <span className="text-xs text-gray-600 dark:text-zinc-400">Uploading...</span>
+      ) : (
+        <>
+          <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span className="text-xs text-gray-600 dark:text-zinc-400">Upload</span>
+        </>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+    </button>
+  );
+};
 
 const Step6Amenities: React.FC = () => {
   const { formData, updateFormData } = useFormContext();
@@ -39,6 +122,29 @@ const Step6Amenities: React.FC = () => {
       facility_image_source: '',
     };
     updateFormData({ facilities: [...formData.facilities, newFacility] });
+  };
+
+  const handleBulkFacilities = (input: string) => {
+    if (!input.trim()) return;
+    
+    // Split by comma and clean up each name
+    const facilityNames = input
+      .split(',')
+      .map(name => name.trim())
+      .filter(name => name.length > 0);
+    
+    if (facilityNames.length === 0) return;
+    
+    // Create facilities from the names
+    const newFacilities: Facility[] = facilityNames.map(name => ({
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      facility_name: name,
+      facility_image_url: '',
+      facility_image_source: '',
+    }));
+    
+    // Add to existing facilities
+    updateFormData({ facilities: [...formData.facilities, ...newFacilities] });
   };
 
   const updateFacility = (id: string, field: keyof Facility, value: any) => {
@@ -99,51 +205,58 @@ const Step6Amenities: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className={labelClasses}>
-                  Building Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={building.building_name}
-                  onChange={(e) => updateBuilding(building.id, 'building_name', e.target.value)}
-                  className={inputClasses}
-                  placeholder="e.g., Tower A"
-                  required
-                />
+            <div className="space-y-4">
+              {/* First Row: Building Name and Completion Date */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={labelClasses}>
+                    Building Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={building.building_name}
+                    onChange={(e) => updateBuilding(building.id, 'building_name', e.target.value)}
+                    className={inputClasses}
+                    placeholder="e.g., Tower A"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={labelClasses}>Completion Date</label>
+                  <input
+                    type="date"
+                    value={building.building_completion_date}
+                    onChange={(e) => updateBuilding(building.id, 'building_completion_date', e.target.value)}
+                    className={inputClasses}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <label className={labelClasses}>Completion Date</label>
-                <input
-                  type="date"
-                  value={building.building_completion_date}
-                  onChange={(e) => updateBuilding(building.id, 'building_completion_date', e.target.value)}
-                  className={inputClasses}
-                />
-              </div>
+              {/* Second Row: Description and Image Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className={labelClasses}>Description</label>
+                  <textarea
+                    value={building.building_description}
+                    onChange={(e) => updateBuilding(building.id, 'building_description', e.target.value)}
+                    className={inputClasses}
+                    rows={6}
+                    placeholder="What's in this building"
+                  />
+                </div>
 
-              <div className="md:col-span-2 space-y-2">
-                <label className={labelClasses}>Description</label>
-                <textarea
-                  value={building.building_description}
-                  onChange={(e) => updateBuilding(building.id, 'building_description', e.target.value)}
-                  className={inputClasses}
-                  rows={2}
-                  placeholder="What's in this building"
-                />
-              </div>
-
-              <div className="md:col-span-2 space-y-2">
-                <FileUpload
-                  label="Building Image"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  category="image"
-                  onUploadComplete={(url) => updateBuilding(building.id, 'building_image_url', url)}
-                  currentUrl={building.building_image_url}
-                  helpText="Upload building image (Max 5MB)"
-                />
+                <div className="space-y-2">
+                  <label className={labelClasses}>Building Image</label>
+                  <FileUpload
+                    label=""
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    category="image"
+                    onUploadComplete={(url) => updateBuilding(building.id, 'building_image_url', url)}
+                    currentUrl={building.building_image_url}
+                    helpText=""
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -161,22 +274,44 @@ const Step6Amenities: React.FC = () => {
       <div className="space-y-4">
         <h3 className="text-base font-semibold text-black dark:text-white flex items-center gap-2">
           <span className="w-6 h-6 bg-black dark:bg-white text-white dark:text-black rounded-full flex items-center justify-center text-xs">2</span>
-          Facilities
+          Facilities <span className="text-red-500">*</span>
         </h3>
 
-        {formData.facilities.map((facility, index) => (
-          <div key={facility.id} className={cardClasses}>
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-sm font-semibold text-black dark:text-white">Facility {index + 1}</h4>
-              <button
-                onClick={() => removeFacility(facility.id)}
-                className={removeButtonClasses}
-              >
-                Remove
-              </button>
-            </div>
+        {/* Bulk Add Facilities */}
+        <div className={cardClasses}>
+          <label className={labelClasses}>
+            Bulk Add Facilities (comma-separated)
+          </label>
+          <textarea
+            className={inputClasses}
+            rows={2}
+            placeholder="e.g., Swimming Pool, Gym, Parking, Security, Elevator"
+            onBlur={(e) => {
+              if (e.target.value.trim()) {
+                handleBulkFacilities(e.target.value);
+                e.target.value = ''; // Clear after processing
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                if (e.currentTarget.value.trim()) {
+                  handleBulkFacilities(e.currentTarget.value);
+                  e.currentTarget.value = ''; // Clear after processing
+                }
+              }
+            }}
+          />
+          <p className={helpTextClasses}>
+            Paste comma-separated facility names and press Ctrl+Enter (or click outside) to add them all at once
+          </p>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Facilities List */}
+        {formData.facilities.map((facility) => (
+          <div key={facility.id} className={cardClasses}>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-4 items-end">
+              {/* Facility Name */}
               <div className="space-y-2">
                 <label className={labelClasses}>
                   Facility Name <span className="text-red-500">*</span>
@@ -186,42 +321,62 @@ const Step6Amenities: React.FC = () => {
                   value={facility.facility_name}
                   onChange={(e) => updateFacility(facility.id, 'facility_name', e.target.value)}
                   className={inputClasses}
-                  placeholder="e.g., Swimming Pool, Gym"
+                  placeholder="e.g., Swimming Pool"
                   required
                 />
               </div>
 
+              {/* Image Upload */}
               <div className="space-y-2">
-                <label className={labelClasses}>Image Source</label>
-                <input
-                  type="text"
-                  value={facility.facility_image_source}
-                  onChange={(e) => updateFacility(facility.id, 'facility_image_source', e.target.value)}
-                  className={inputClasses}
-                  placeholder="e.g., Visualisation from developer"
+                <label className={labelClasses}>Facility Image</label>
+                <CompactImageUpload
+                  currentUrl={facility.facility_image_url}
+                  onUploadComplete={(url: string) => updateFacility(facility.id, 'facility_image_url', url)}
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-2">
-                <FileUpload
-                  label="Facility Image"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  category="image"
-                  onUploadComplete={(url) => updateFacility(facility.id, 'facility_image_url', url)}
-                  currentUrl={facility.facility_image_url}
-                  helpText="Upload facility image (Max 5MB)"
-                />
+              {/* Add Button */}
+              <div>
+                <button
+                  type="button"
+                  onClick={addFacility}
+                  className="p-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+                  title="Add another facility"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
               </div>
+
+              {/* Remove Button */}
+              {formData.facilities.length > 1 && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => removeFacility(facility.id)}
+                    className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                    title="Remove facility"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
 
-        <button
-          onClick={addFacility}
-          className={addButtonClasses}
-        >
-          + Add Facility
-        </button>
+        {/* Add First Facility Button (if none exist) */}
+        {formData.facilities.length === 0 && (
+          <button
+            onClick={addFacility}
+            className={addButtonClasses}
+          >
+            + Add Facility
+          </button>
+        )}
       </div>
 
       {/* Map Points Section */}

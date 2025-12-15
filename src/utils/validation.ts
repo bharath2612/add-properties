@@ -93,31 +93,26 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     }
   });
 
-  // Step 6: Buildings Validation (at least one required)
-  if (!formData.buildings || formData.buildings.length === 0) {
-    errors.push({
-      field: 'buildings',
-      message: 'At least one building is required',
-      step: 6,
-    });
-  }
-
-  // Step 6: Buildings Validation (per item)
+  // Step 6: Buildings Validation (optional - only validate if buildings are provided and have content)
+  // Only validate buildings that have been started (have at least one field filled)
   formData.buildings.forEach((building, index) => {
-    if (!building.id || building.id.trim() === '') {
-      errors.push({ 
-        field: `buildings[${index}].id`, 
-        message: `ID is required for building ${index + 1}`, 
-        step: 6 
-      });
+    // Check if building has any content (if so, validate required fields)
+    const hasContent = building.building_name?.trim() || 
+                      building.building_description?.trim() || 
+                      building.building_completion_date?.trim() || 
+                      building.building_image_url?.trim();
+    
+    // Only validate if building has been started
+    if (hasContent) {
+      if (!building.building_name || building.building_name.trim() === '') {
+        errors.push({ 
+          field: `buildings[${index}].building_name`, 
+          message: `Name is required for building ${index + 1}`, 
+          step: 6 
+        });
+      }
     }
-    if (!building.building_name || building.building_name.trim() === '') {
-      errors.push({ 
-        field: `buildings[${index}].building_name`, 
-        message: `Name is required for building ${index + 1}`, 
-        step: 6 
-      });
-    }
+    // If building has no content, it's considered empty/optional and we skip validation
   });
 
   // Step 6: Facilities Validation (at least one required)
@@ -169,10 +164,32 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     });
   }
 
-  // Check additional images
-  const additionalImages = formData.image_urls 
-    ? formData.image_urls.split(',').map(url => url.trim()).filter(Boolean)
-    : [];
+  // Check additional images - properly parse and validate
+  // Handle both comma-separated string and ensure we're checking the actual data
+  let additionalImages: string[] = [];
+  if (formData.image_urls && formData.image_urls.trim()) {
+    // Split by comma and newline, trim, and filter out empty strings and invalid values
+    const rawUrls = formData.image_urls.split(/[,\n]/).map(url => url.trim());
+    additionalImages = rawUrls.filter(url => {
+      // Filter out empty strings and obviously invalid values
+      // Be very lenient - accept any non-empty string that's not a known invalid value
+      if (url.length === 0) return false;
+      if (url === 'undefined' || url === 'null' || url === 'false' || url === 'true') return false;
+      // Accept any other non-empty string as a potential URL
+      return true;
+    });
+  }
+  
+  // Debug logging to help diagnose issues
+  console.log('Additional images validation:', {
+    image_urls: formData.image_urls,
+    image_urls_type: typeof formData.image_urls,
+    image_urls_length: formData.image_urls?.length,
+    parsed_count: additionalImages.length,
+    parsed_urls: additionalImages
+  });
+  
+  // Additional images validation - check if we have valid image URLs
   if (additionalImages.length === 0) {
     errors.push({
       field: 'image_urls',
