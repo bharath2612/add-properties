@@ -28,7 +28,6 @@ const HomePage: React.FC = () => {
     developerStats: [],
   });
   const [loading, setLoading] = useState(true);
-  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     // Always fetch when on home route
