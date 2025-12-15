@@ -107,6 +107,7 @@ export interface PropertyFormData {
   master_plan_images?: ImageInput[];
 
   developer: DeveloperFormData;
+  developer_id?: number | null; // Preserve developer_id for backward compatibility
   buildings: BuildingFormData[];
   unit_blocks: UnitBlockFormData[];
   payment_plans: PaymentPlanFormData[];

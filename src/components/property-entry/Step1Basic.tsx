@@ -85,12 +85,21 @@ const Step1Basic: React.FC = () => {
           <input
             type="text"
             value={formData.name}
-            onChange={(e) => updateFormData({ name: e.target.value })}
+            onChange={(e) => {
+              const name = e.target.value;
+              // Basic slugify: lowercase, trim, replace non-alphanumerics with hyphens
+              const slug = name
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+              updateFormData({ name, slug });
+            }}
             className={inputClasses}
             placeholder="e.g., Cello by Taraf"
             required
           />
-          <p className={helpTextClasses}>Full property name</p>
+          <p className={helpTextClasses}>Full property name (slug will be generated automatically)</p>
         </div>
 
         <div className="space-y-2">
@@ -100,11 +109,11 @@ const Step1Basic: React.FC = () => {
           <input
             type="text"
             value={formData.slug}
-            onChange={(e) => updateFormData({ slug: e.target.value })}
-            className={inputClasses}
+            className={inputClasses + ' bg-gray-50 dark:bg-zinc-900/40 cursor-not-allowed'}
             placeholder="e.g., cello-by-taraf-jvc"
+            disabled
           />
-          <p className={helpTextClasses}>URL-friendly slug (optional)</p>
+          <p className={helpTextClasses}>Automatically generated from the property name</p>
         </div>
 
         <div className="space-y-2">
@@ -156,6 +165,35 @@ const Step1Basic: React.FC = () => {
           )}
           <p className={helpTextClasses}>Select an existing developer or add a new one</p>
         </div>
+      </div>
+
+      {/* Overview Section */}
+      <div className="space-y-2">
+        <label className={labelClasses}>
+          Project Overview <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={formData.overview}
+          onChange={(e) => updateFormData({ overview: e.target.value })}
+          className={inputClasses}
+          rows={8}
+          placeholder="Detailed project description (markdown supported)...&#10;&#10;Example:&#10;Cello by Taraf is a modern residential development in JVC offering studio, 1BR, and 2BR apartments with world-class amenities."
+          required
+          minLength={150}
+        />
+        <div className="flex items-center justify-between">
+          <p className={helpTextClasses}>
+            Rich description of the property (minimum 150 characters)
+          </p>
+          <p className={`text-xs ${formData.overview.length >= 150 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-zinc-400'}`}>
+            {formData.overview.length}/150 characters
+          </p>
+        </div>
+        {formData.overview.length > 0 && formData.overview.length < 150 && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Overview must be at least 150 characters ({formData.overview.length}/150)
+          </p>
+        )}
       </div>
 
       {/* Developer Form Modal */}

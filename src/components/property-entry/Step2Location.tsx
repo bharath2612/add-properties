@@ -29,7 +29,7 @@ const Step2Location: React.FC = () => {
 
         <div className="space-y-2">
           <label className={labelClasses}>
-            City
+            City <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -37,12 +37,13 @@ const Step2Location: React.FC = () => {
             onChange={(e) => updateFormData({ city: e.target.value })}
             className={inputClasses}
             placeholder="e.g., Dubai"
+            required
           />
         </div>
 
         <div className="space-y-2">
           <label className={labelClasses}>
-            Country
+            Country <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -50,12 +51,13 @@ const Step2Location: React.FC = () => {
             onChange={(e) => updateFormData({ country: e.target.value })}
             className={inputClasses}
             placeholder="e.g., United Arab Emirates"
+            required
           />
         </div>
 
         <div className="space-y-2">
           <label className={labelClasses}>
-            Coordinates
+            Coordinates <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -63,6 +65,7 @@ const Step2Location: React.FC = () => {
             onChange={(e) => updateFormData({ coordinates: e.target.value })}
             className={inputClasses}
             placeholder="25.051776, 55.198589"
+            required
           />
           <p className={helpTextClasses}>Format: latitude, longitude</p>
         </div>
@@ -85,4 +88,3 @@ const Step2Location: React.FC = () => {
 };
 
 export default Step2Location;
-

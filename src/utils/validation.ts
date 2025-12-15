@@ -19,10 +19,28 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
   if (!formData.developer_id || formData.developer_id === null) {
     errors.push({ field: 'developer_id', message: 'Developer is required', step: 1 });
   }
+  if (!formData.overview || formData.overview.trim() === '') {
+    errors.push({ field: 'overview', message: 'Project overview is required', step: 1 });
+  } else if (formData.overview.trim().length < 150) {
+    errors.push({ 
+      field: 'overview', 
+      message: `Project overview must be at least 150 characters (currently ${formData.overview.trim().length} characters)`, 
+      step: 1 
+    });
+  }
 
   // Step 2: Location - MANDATORY
   if (!formData.area || formData.area.trim() === '') {
     errors.push({ field: 'area', message: 'Area is required', step: 2 });
+  }
+  if (!formData.city || formData.city.trim() === '') {
+    errors.push({ field: 'city', message: 'City is required', step: 2 });
+  }
+  if (!formData.country || formData.country.trim() === '') {
+    errors.push({ field: 'country', message: 'Country is required', step: 2 });
+  }
+  if (!formData.coordinates || formData.coordinates.trim() === '') {
+    errors.push({ field: 'coordinates', message: 'Coordinates are required', step: 2 });
   }
 
   // Step 3: Status - MANDATORY
@@ -41,7 +59,16 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     errors.push({ field: 'area_unit', message: 'Area Unit is required', step: 4 });
   }
 
-  // Step 5: Unit Types Validation (if provided)
+  // Step 5: Unit Types Validation (at least one required)
+  if (!formData.unitTypes || formData.unitTypes.length === 0) {
+    errors.push({
+      field: 'unitTypes',
+      message: 'At least one unit type is required',
+      step: 5,
+    });
+  }
+
+  // Step 5: Unit Types Validation (per item)
   formData.unitTypes.forEach((unit, index) => {
     if (!unit.unit_type || unit.unit_type.trim() === '') {
       errors.push({ 
@@ -66,7 +93,16 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     }
   });
 
-  // Step 6: Buildings Validation (if provided)
+  // Step 6: Buildings Validation (at least one required)
+  if (!formData.buildings || formData.buildings.length === 0) {
+    errors.push({
+      field: 'buildings',
+      message: 'At least one building is required',
+      step: 6,
+    });
+  }
+
+  // Step 6: Buildings Validation (per item)
   formData.buildings.forEach((building, index) => {
     if (!building.id || building.id.trim() === '') {
       errors.push({ 
@@ -84,7 +120,16 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     }
   });
 
-  // Step 6: Facilities Validation (if provided)
+  // Step 6: Facilities Validation (at least one required)
+  if (!formData.facilities || formData.facilities.length === 0) {
+    errors.push({
+      field: 'facilities',
+      message: 'At least one facility is required',
+      step: 6,
+    });
+  }
+
+  // Step 6: Facilities Validation (per item)
   formData.facilities.forEach((facility, index) => {
     if (!facility.facility_name || facility.facility_name.trim() === '') {
       errors.push({ 
@@ -95,7 +140,16 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     }
   });
 
-  // Step 6: Map Points Validation (if provided)
+  // Step 6: Map Points Validation (at least one required)
+  if (!formData.mapPoints || formData.mapPoints.length === 0) {
+    errors.push({
+      field: 'mapPoints',
+      message: 'At least one point of interest is required',
+      step: 6,
+    });
+  }
+
+  // Step 6: Map Points Validation (per item)
   formData.mapPoints.forEach((point, index) => {
     if (!point.poi_name || point.poi_name.trim() === '') {
       errors.push({ 
@@ -106,12 +160,49 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     }
   });
 
-  // Step 8: Payment Plans Validation (if provided)
+  // Step 7: Media Validation
+  if (!formData.cover_url || formData.cover_url.trim() === '') {
+    errors.push({
+      field: 'cover_url',
+      message: 'Cover image is required',
+      step: 7,
+    });
+  }
+
+  // Check additional images
+  const additionalImages = formData.image_urls 
+    ? formData.image_urls.split(',').map(url => url.trim()).filter(Boolean)
+    : [];
+  if (additionalImages.length === 0) {
+    errors.push({
+      field: 'image_urls',
+      message: 'At least one additional image is required',
+      step: 7,
+    });
+  }
+
+  // Step 8: Payment Plans Validation (at least one required)
+  if (!formData.paymentPlans || formData.paymentPlans.length === 0) {
+    errors.push({
+      field: 'paymentPlans',
+      message: 'At least one payment plan is required',
+      step: 8,
+    });
+  }
+
+  // Step 8: Payment Plans Validation (per item)
   formData.paymentPlans.forEach((plan, index) => {
     if (!plan.payment_plan_name || plan.payment_plan_name.trim() === '') {
       errors.push({ 
         field: `paymentPlans[${index}].payment_plan_name`, 
-        message: `Name is required for payment plan ${index + 1}`, 
+        message: `Plan name is required for payment plan ${index + 1}`, 
+        step: 8 
+      });
+    }
+    if (!plan.payment_steps || plan.payment_steps.trim() === '') {
+      errors.push({ 
+        field: `paymentPlans[${index}].payment_steps`, 
+        message: `Payment steps are required for payment plan ${index + 1}`, 
         step: 8 
       });
     }
@@ -143,4 +234,3 @@ export const formatValidationErrors = (errors: ValidationError[]): string => {
 
   return message;
 };
-

@@ -36,8 +36,13 @@ const Step7Media: React.FC = () => {
             accept="image/jpeg,image/jpg,image/png,image/webp"
             category="image"
             onUploadComplete={(url) => updateFormData({ cover_url: url })}
-            helpText="Main property cover image (Max 5MB)"
+            helpText="Main property cover image (Max 5MB) - Required"
           />
+          {!formData.cover_url && (
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+              <span className="text-red-500">*</span> Cover image is required
+            </p>
+          )}
 
           {formData.cover_url && (
             <div className="mt-4">
@@ -78,8 +83,13 @@ const Step7Media: React.FC = () => {
             multiple
             onMultipleUploadComplete={handleAdditionalImagesUpload}
             onUploadComplete={(url) => handleAdditionalImagesUpload([url])}
-            helpText="Upload multiple property images (Max 5MB each)"
+            helpText="Upload at least one additional property image (Max 5MB each) - Required"
           />
+          {additionalImages.length === 0 && (
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+              <span className="text-red-500">*</span> At least one additional image is required
+            </p>
+          )}
 
           {additionalImages.length > 0 && (
             <div className="mt-4">

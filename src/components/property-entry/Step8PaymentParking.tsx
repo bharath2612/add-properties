@@ -38,8 +38,13 @@ const Step8PaymentParking: React.FC = () => {
       <div className="space-y-4">
         <h3 className="text-base font-semibold text-black dark:text-white flex items-center gap-2">
           <span className="w-6 h-6 bg-black dark:bg-white text-white dark:text-black rounded-full flex items-center justify-center text-xs">1</span>
-          Payment Plans
+          Payment Plans <span className="text-red-500">*</span>
         </h3>
+        {formData.paymentPlans.length === 0 && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            <span className="text-red-500">*</span> At least one payment plan is required
+          </p>
+        )}
 
         {formData.paymentPlans.map((plan, index) => (
           <div key={plan.id} className={cardClasses}>
@@ -64,12 +69,13 @@ const Step8PaymentParking: React.FC = () => {
                   onChange={(e) => updatePaymentPlan(plan.id, 'payment_plan_name', e.target.value)}
                   className={inputClasses}
                   placeholder="e.g., Standard Payment Plan"
+                  required
                 />
               </div>
 
               <div className="space-y-2">
                 <label className={labelClasses}>
-                  Payment Steps
+                  Payment Steps <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={plan.payment_steps}
@@ -77,8 +83,9 @@ const Step8PaymentParking: React.FC = () => {
                   className={inputClasses}
                   rows={4}
                   placeholder="Format (separate with | ):&#10;5% On booking|55% During construction|40% Upon Handover"
+                  required
                 />
-                <p className={helpTextClasses}>Separate steps with | (pipe character)</p>
+                <p className={helpTextClasses}>Separate steps with | (pipe character) - Required</p>
               </div>
 
               <div className="space-y-2">

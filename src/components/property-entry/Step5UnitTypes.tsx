@@ -24,9 +24,31 @@ const Step5UnitTypes: React.FC = () => {
   };
 
   const updateUnitType = (id: string, field: keyof UnitType, value: any) => {
-    const updated = formData.unitTypes.map((unit) =>
-      unit.id === id ? { ...unit, [field]: value } : unit
-    );
+    const updated = formData.unitTypes.map((unit) => {
+      if (unit.id !== id) return unit;
+
+      // Auto-fill normalized_type based on bedrooms if not manually set
+      if (field === 'unit_bedrooms') {
+        const bedroomsRaw = String(value || '').trim().toLowerCase();
+        let normalized_type = unit.normalized_type;
+
+        if (!normalized_type || normalized_type.trim() === '') {
+          if (!bedroomsRaw || bedroomsRaw === 'studio') {
+            normalized_type = 'Studio';
+          } else {
+            // Extract first number and build like "1BR", "2BR"
+            const match = bedroomsRaw.match(/\\d+/);
+            if (match) {
+              normalized_type = `${match[0]}BR`;
+            }
+          }
+        }
+
+        return { ...unit, unit_bedrooms: value, normalized_type };
+      }
+
+      return { ...unit, [field]: value };
+    });
     updateFormData({ unitTypes: updated });
   };
 
@@ -74,7 +96,7 @@ const Step5UnitTypes: React.FC = () => {
 
             <div className="space-y-2">
               <label className={labelClasses}>
-                Normalized Type
+                Normalized Type <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -82,6 +104,7 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'normalized_type', e.target.value)}
                 className={inputClasses}
                 placeholder="e.g., 1BR, 2BR, Studio"
+                required
               />
             </div>
 
@@ -95,6 +118,7 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'unit_bedrooms', e.target.value)}
                 className={inputClasses}
                 placeholder="e.g., Studio, 1 bedroom, 2 bedroom"
+                required
               />
             </div>
 
@@ -113,7 +137,7 @@ const Step5UnitTypes: React.FC = () => {
 
             <div className="space-y-2">
               <label className={labelClasses}>
-                Min Area (m²)
+                Min Area (m²) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -121,12 +145,13 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'units_area_from_m2', e.target.value ? Number(e.target.value) : null)}
                 className={inputClasses}
                 placeholder="Min area"
+                required
               />
             </div>
 
             <div className="space-y-2">
               <label className={labelClasses}>
-                Max Area (m²)
+                Max Area (m²) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -134,12 +159,13 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'units_area_to_m2', e.target.value ? Number(e.target.value) : null)}
                 className={inputClasses}
                 placeholder="Max area"
+                required
               />
             </div>
 
             <div className="space-y-2">
               <label className={labelClasses}>
-                Min Price
+                Min Price <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -147,12 +173,13 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'units_price_from', e.target.value ? Number(e.target.value) : null)}
                 className={inputClasses}
                 placeholder="Min price"
+                required
               />
             </div>
 
             <div className="space-y-2">
               <label className={labelClasses}>
-                Max Price
+                Max Price <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -160,6 +187,7 @@ const Step5UnitTypes: React.FC = () => {
                 onChange={(e) => updateUnitType(unit.id, 'units_price_to', e.target.value ? Number(e.target.value) : null)}
                 className={inputClasses}
                 placeholder="Max price"
+                required
               />
             </div>
 

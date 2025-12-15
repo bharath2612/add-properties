@@ -18,9 +18,7 @@ import Step5UnitTypes from './Step5UnitTypes';
 import Step6Amenities from './Step6Amenities';
 import Step7Media from './Step7Media';
 import Step8PaymentParking from './Step8PaymentParking';
-import Step9Overview from './Step9Developer';
-
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 8;
 
 const PropertyEntryForm: React.FC = () => {
   const { formData, currentStep, setCurrentStep, resetFormData } = useFormContext();
@@ -32,10 +30,12 @@ const PropertyEntryForm: React.FC = () => {
   const [dryRunIssues, setDryRunIssues] = useState<ValidationIssue[]>([]);
   const { toasts, removeToast, success, error: showError } = useToast();
 
-  // Ensure currentStep is at least 1
+  // Ensure currentStep stays within [1, TOTAL_STEPS]
   useEffect(() => {
     if (currentStep < 1) {
       setCurrentStep(1);
+    } else if (currentStep > TOTAL_STEPS) {
+      setCurrentStep(TOTAL_STEPS);
     }
   }, [currentStep, setCurrentStep]);
 
@@ -45,7 +45,9 @@ const PropertyEntryForm: React.FC = () => {
         return !!(
           formData.external_id?.trim() && 
           formData.name?.trim() && 
-          formData.developer_id
+          formData.developer_id &&
+          formData.overview?.trim() &&
+          formData.overview.trim().length >= 150
         );
       case 2:
         return !!formData.area?.trim();
@@ -135,7 +137,9 @@ const PropertyEntryForm: React.FC = () => {
       // TODO: Update submitProperty to accept new payload structure
       const oldFormData = convertToOldFormData(propertyFormData);
 
-      // Check for blob URLs that need to be uploaded first
+      // Check for blob URLs that need to be uploaded first.
+      // In production we block submission; in development we only warn,
+      // because the R2 dev mock intentionally uses blob: URLs.
       const blobUrlFields: string[] = [];
       if (oldFormData.video_url && oldFormData.video_url.startsWith('blob:')) {
         blobUrlFields.push('Video URL');
@@ -151,12 +155,22 @@ const PropertyEntryForm: React.FC = () => {
       }
 
       if (blobUrlFields.length > 0) {
-        showError(
-          `Please upload the following files properly (they are currently temporary blob URLs): ${blobUrlFields.join(', ')}. Files must be uploaded to storage before submission.`,
-          10000
-        );
-        setIsSubmitting(false);
-        return;
+        if (import.meta.env.PROD) {
+          // In production, block submission to ensure files are actually uploaded to storage.
+          showError(
+            `Please upload the following files properly (they are currently temporary blob URLs): ${blobUrlFields.join(', ')}. Files must be uploaded to storage before submission.`,
+            10000
+          );
+          setIsSubmitting(false);
+          return;
+        } else {
+          // In dev, just log a warning so you can still test the flow
+          // when using the R2 mock (which returns blob: URLs).
+          console.warn(
+            'Submitting with blob: URLs in development mode (from R2 mock upload). Fields:',
+            blobUrlFields
+          );
+        }
       }
 
       // Submit property and all related data
@@ -209,8 +223,6 @@ const PropertyEntryForm: React.FC = () => {
         return <Step7Media />;
       case 8:
         return <Step8PaymentParking />;
-      case 9:
-        return <Step9Overview />;
       default:
         return <Step1Basic />;
     }

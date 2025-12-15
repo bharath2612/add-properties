@@ -101,13 +101,16 @@ const Step6Amenities: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={labelClasses}>Building Name</label>
+                <label className={labelClasses}>
+                  Building Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={building.building_name}
                   onChange={(e) => updateBuilding(building.id, 'building_name', e.target.value)}
                   className={inputClasses}
                   placeholder="e.g., Tower A"
+                  required
                 />
               </div>
 
@@ -175,13 +178,16 @@ const Step6Amenities: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={labelClasses}>Facility Name</label>
+                <label className={labelClasses}>
+                  Facility Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={facility.facility_name}
                   onChange={(e) => updateFacility(facility.id, 'facility_name', e.target.value)}
                   className={inputClasses}
                   placeholder="e.g., Swimming Pool, Gym"
+                  required
                 />
               </div>
 
@@ -239,18 +245,23 @@ const Step6Amenities: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={labelClasses}>Location Name</label>
+                <label className={labelClasses}>
+                  Location Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={point.poi_name}
                   onChange={(e) => updateMapPoint(point.id, 'poi_name', e.target.value)}
                   className={inputClasses}
                   placeholder="e.g., Downtown Dubai"
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <label className={labelClasses}>Distance (km)</label>
+                <label className={labelClasses}>
+                  Distance (km) <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
                   step="0.1"
@@ -258,6 +269,7 @@ const Step6Amenities: React.FC = () => {
                   onChange={(e) => updateMapPoint(point.id, 'distance_km', e.target.value ? Number(e.target.value) : null)}
                   className={inputClasses}
                   placeholder="e.g., 5.2"
+                  required
                 />
               </div>
             </div>

@@ -140,6 +140,7 @@ export function convertToPropertyFormData(oldData: FormData): PropertyFormData {
     architecture_images: [],
     master_plan_images: [],
     developer,
+    developer_id: oldData.developer_id || null, // Preserve developer_id
     buildings,
     unit_blocks,
     payment_plans,
@@ -162,7 +163,7 @@ export function convertToOldFormData(newData: PropertyFormData): FormData {
     external_id: newData.external_id || '',
     name: newData.name || '',
     slug: newData.slug || '',
-    developer_id: null, // Note: PropertyFormData doesn't have developer_id, so we can't convert it back
+    developer_id: newData.developer_id || null, // Use preserved developer_id
     area: newData.area || '',
     city: newData.city || '',
     country: newData.country || '',
