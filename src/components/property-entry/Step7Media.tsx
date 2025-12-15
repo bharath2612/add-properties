@@ -21,7 +21,6 @@ const Step7Media: React.FC = () => {
     const allImages = [...additionalImages, ...urls];
     setAdditionalImages(allImages);
     const imageUrlsString = allImages.join(',');
-    console.log('Updating image_urls:', { urls, allImages, imageUrlsString });
     updateFormData({ image_urls: imageUrlsString });
   };
 

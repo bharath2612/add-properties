@@ -217,12 +217,13 @@ export function convertToOldFormData(newData: PropertyFormData): FormData {
       distance_km: point.distance_km || null,
     })),
     cover_url: newData.cover_image?.url || newData.cover_url || '',
-    image_urls: [
+    // Use the preserved image_urls if available, otherwise reconstruct from image arrays
+    image_urls: newData.image_urls || [
       ...(newData.lobby_images || []).map(img => img.url),
       ...(newData.interior_images || []).map(img => img.url),
       ...(newData.architecture_images || []).map(img => img.url),
       ...(newData.master_plan_images || []).map(img => img.url),
-    ].join(','),
+    ].filter(Boolean).join(','),
     video_url: newData.video_url || '',
     brochure_url: newData.brochure_url || '',
     layouts_pdf: newData.layouts_pdf || '',

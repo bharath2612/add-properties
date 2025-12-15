@@ -180,15 +180,6 @@ export const validateFormData = (formData: FormData): ValidationError[] => {
     });
   }
   
-  // Debug logging to help diagnose issues
-  console.log('Additional images validation:', {
-    image_urls: formData.image_urls,
-    image_urls_type: typeof formData.image_urls,
-    image_urls_length: formData.image_urls?.length,
-    parsed_count: additionalImages.length,
-    parsed_urls: additionalImages
-  });
-  
   // Additional images validation - check if we have valid image URLs
   if (additionalImages.length === 0) {
     errors.push({
