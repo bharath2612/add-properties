@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+// Use base client since PropertyDetailsPage is already protected by DashboardAuth
+// The authenticatedSupabase proxy causes "Session expired" errors unnecessarily
+import { supabase as baseClient } from '../../lib/supabaseAuth';
 import { PropertyDetails } from '../../types/database.types';
 
 const PropertyDetailsPage: React.FC = () => {
@@ -25,7 +27,7 @@ const PropertyDetailsPage: React.FC = () => {
       const isNumeric = !isNaN(Number(identifier));
       
       // Fetch property
-      const propertyQuery = supabase
+      const propertyQuery = baseClient
         .from('properties')
         .select('*');
       
@@ -53,35 +55,35 @@ const PropertyDetailsPage: React.FC = () => {
       ] = await Promise.all([
         // Developer
         property.developer_id
-          ? supabase.from('partner_developers').select('*').eq('id', property.developer_id).single()
+          ? baseClient.from('partner_developers').select('*').eq('id', property.developer_id).single()
           : Promise.resolve({ data: null }),
         
         // Images
-        supabase.from('property_images').select('*').eq('property_id', property.id).order('category'),
+        baseClient.from('property_images').select('*').eq('property_id', property.id).order('category'),
         
         // Unit blocks
-        supabase.from('property_unit_blocks').select('*').eq('property_id', property.id),
+        baseClient.from('property_unit_blocks').select('*').eq('property_id', property.id),
         
         // Buildings
-        supabase.from('property_buildings').select('*').eq('property_id', property.id),
+        baseClient.from('property_buildings').select('*').eq('property_id', property.id),
         
         // Facilities
-        supabase
+        baseClient
           .from('property_facilities')
           .select('*, facilities(*)')
           .eq('property_id', property.id),
         
         // Map points
-        supabase.from('property_map_points').select('*').eq('property_id', property.id),
+        baseClient.from('property_map_points').select('*').eq('property_id', property.id),
         
         // Payment plans
-        supabase.from('property_payment_plans').select('*').eq('property_id', property.id),
+        baseClient.from('property_payment_plans').select('*').eq('property_id', property.id),
       ]);
 
       // Fetch payment plan values
       const paymentPlansWithValues = await Promise.all(
         (paymentPlans || []).map(async (plan) => {
-          const { data: values } = await supabase
+          const { data: values } = await baseClient
             .from('payment_plan_values')
             .select('*')
             .eq('property_payment_plan_id', plan.id)
