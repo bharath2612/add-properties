@@ -370,118 +370,136 @@ export const submitProperty = async (
 
     // Step 9: Insert Map Points
     // Note: source_id is required (NOT NULL) in the schema
-    console.log('Map points check:', {
+    console.log('🔍 Map points check:', {
       hasMapPoints: !!formData.mapPoints,
       mapPointsLength: formData.mapPoints?.length || 0,
       mapPointsData: formData.mapPoints,
+      mapPointsType: typeof formData.mapPoints,
+      isArray: Array.isArray(formData.mapPoints),
     });
     
-    if (formData.mapPoints && formData.mapPoints.length > 0) {
-      // Get or create a default source_id for manual entries
-      let defaultSourceId: number | null = null;
+    // Debug: Check if mapPoints is actually an array with data
+    if (!formData.mapPoints) {
+      console.warn('⚠️ formData.mapPoints is null or undefined');
+    } else if (!Array.isArray(formData.mapPoints)) {
+      console.error('❌ formData.mapPoints is not an array:', typeof formData.mapPoints, formData.mapPoints);
+    } else if (formData.mapPoints.length === 0) {
+      console.warn('⚠️ formData.mapPoints is an empty array - no map points to insert');
+    }
+    
+    if (formData.mapPoints && Array.isArray(formData.mapPoints) && formData.mapPoints.length > 0) {
+      // Use source_id = 2 as default (as per user's request)
+      // The schema requires source_id to be NOT NULL and reference data_sources(id)
+      const defaultSourceId = 2;
       
-      // Strategy 1: Try to get source_id from the property we just created
-      const { data: propertyData } = await supabase
-        .from('properties')
-        .select('source_id')
-        .eq('id', property_id)
+      console.log(`✅ Using default source_id: ${defaultSourceId} for map points`);
+      
+      // Verify that source_id 2 exists in data_sources (optional check)
+      const { data: sourceCheck, error: sourceCheckError } = await supabase
+        .from('data_sources')
+        .select('id')
+        .eq('id', defaultSourceId)
         .maybeSingle();
       
-      if (propertyData?.source_id) {
-        defaultSourceId = propertyData.source_id;
-        console.log(`Using property source_id: ${defaultSourceId}`);
+      if (sourceCheckError) {
+        console.warn(`⚠️ Could not verify source_id ${defaultSourceId} exists:`, sourceCheckError.message);
+      } else if (!sourceCheck) {
+        console.error(`❌ CRITICAL: source_id ${defaultSourceId} does not exist in data_sources table!`);
+        console.error('💡 Please create it: INSERT INTO data_sources (id, code, name, active) VALUES (2, \'manual\', \'Manual Entry\', true);');
       } else {
-        // Strategy 2: Try to find 'manual' source
-        const { data: manualSource } = await supabase
-          .from('data_sources')
-          .select('id')
-          .eq('code', 'manual')
-          .maybeSingle();
-        
-        if (manualSource) {
-          defaultSourceId = manualSource.id;
-          console.log(`Using manual source_id: ${defaultSourceId}`);
-        } else {
-          // Strategy 3: Get any existing source
-          const { data: anySource } = await supabase
-            .from('data_sources')
-            .select('id')
-            .limit(1)
-            .maybeSingle();
-          
-          if (anySource) {
-            defaultSourceId = anySource.id;
-            console.log(`Using first available source_id: ${defaultSourceId}`);
-          } else {
-            // Strategy 4: Create a default 'manual' source if none exists
-            console.log('No data_sources found, creating default "manual" source...');
-            const { data: newSource, error: createError } = await supabase
-              .from('data_sources')
-              .insert({
-                code: 'manual',
-                name: 'Manual Entry',
-                active: true,
-              })
-              .select('id')
-              .single();
-            
-            if (createError) {
-              console.error('Failed to create manual source:', createError);
-              // Last resort: try source_id = 1 (might fail)
-              defaultSourceId = 1;
-              console.warn(`Using fallback source_id: ${defaultSourceId} (may fail if it doesn't exist)`);
-            } else if (newSource) {
-              defaultSourceId = newSource.id;
-              console.log(`Created and using new manual source_id: ${defaultSourceId}`);
-            }
-          }
-        }
+        console.log(`✅ Verified source_id ${defaultSourceId} exists in data_sources`);
       }
 
       // Filter out invalid map points and ensure name is not empty
+      // Note: The schema has a unique constraint on (property_id, source_id, name)
+      // So we need to ensure we don't have duplicates
       const validMapPoints = formData.mapPoints
-        .filter(point => point && point.poi_name && point.poi_name.trim())
-        .map(point => {
+        .filter(point => {
+          const isValid = point && point.poi_name && point.poi_name.trim();
+          if (!isValid) {
+            console.warn('Filtered out invalid map point:', point);
+          }
+          return isValid;
+        })
+        .map((point) => {
           // Create a completely fresh object with ONLY the fields the database expects
+          // Note: id is bigint not null but has no default - Supabase should handle this
+          // If it fails, we may need to generate IDs manually
           return {
+            // Don't provide id - let database handle it (or Supabase will auto-generate)
             property_id: property_id,
-            source_id: defaultSourceId!, // We should always have a source_id by now
+            source_id: defaultSourceId, // Always 2 as per user's request
             name: String(point.poi_name).trim(),
             distance_km: point.distance_km != null ? Number(point.distance_km) : null,
           };
         });
+      
+      // Remove duplicates based on (property_id, source_id, name) unique constraint
+      const uniqueMapPoints = validMapPoints.filter((point, index, self) => 
+        index === self.findIndex(p => 
+          p.property_id === point.property_id && 
+          p.source_id === point.source_id && 
+          p.name === point.name
+        )
+      );
+      
+      if (uniqueMapPoints.length < validMapPoints.length) {
+        console.warn(`⚠️ Removed ${validMapPoints.length - uniqueMapPoints.length} duplicate map points (same property_id, source_id, name)`);
+      }
 
-      if (validMapPoints.length > 0) {
-        if (!defaultSourceId) {
-          console.error('CRITICAL: No source_id available for map points. Skipping insertion.');
-          console.warn('Map points will not be saved. Please ensure data_sources table has at least one record.');
-        } else {
-          // Log what we're about to insert for debugging
-          console.log(`Inserting ${validMapPoints.length} map points with source_id: ${defaultSourceId}`);
-          console.log('Map points data:', JSON.stringify(validMapPoints, null, 2));
+      console.log(`Filtered map points: ${uniqueMapPoints.length} valid and unique out of ${formData.mapPoints.length} total`);
+
+      if (uniqueMapPoints.length > 0) {
+        // Log what we're about to insert for debugging
+        console.log(`📝 Inserting ${uniqueMapPoints.length} map points with source_id: ${defaultSourceId}`);
+        console.log('📋 Map points data:', JSON.stringify(uniqueMapPoints, null, 2));
+        
+        const { data: insertedMapPoints, error: mapPointsError } = await supabase
+          .from('property_map_points')
+          .insert(uniqueMapPoints)
+          .select();
+
+        if (mapPointsError) {
+          console.error('❌ Map points insertion FAILED:', {
+            error: mapPointsError,
+            message: mapPointsError.message,
+            details: mapPointsError.details,
+            hint: mapPointsError.hint,
+            code: mapPointsError.code,
+            dataBeingInserted: JSON.stringify(uniqueMapPoints, null, 2),
+          });
           
-          const { data: insertedMapPoints, error: mapPointsError } = await supabase
-            .from('property_map_points')
-            .insert(validMapPoints)
-            .select();
-
-          if (mapPointsError) {
-            console.error('❌ Map points insertion FAILED:', {
-              error: mapPointsError,
-              message: mapPointsError.message,
-              details: mapPointsError.details,
-              hint: mapPointsError.hint,
-              code: mapPointsError.code,
-              dataBeingInserted: JSON.stringify(validMapPoints, null, 2),
-            });
-            // Don't throw - map points are optional, but log the error clearly
-            console.warn('⚠️ Map points were not saved, but property submission continues');
-          } else {
-            console.log(`✅ Successfully inserted ${insertedMapPoints?.length || validMapPoints.length} map points`);
+          // Check if it's an ID-related error
+          if (mapPointsError.message?.includes('id') || mapPointsError.message?.includes('null')) {
+            console.error('💡 The error might be because the id field is required. The schema shows "id bigint not null" without a default.');
+            console.error('💡 You may need to add a sequence or default value to the id column, or provide IDs manually.');
+          }
+          
+          // Check if it's a foreign key error
+          if (mapPointsError.code === '23503' || mapPointsError.message?.includes('foreign key')) {
+            console.error('💡 Foreign key constraint violation. Ensure source_id 2 exists in data_sources table.');
+            console.error('💡 Run: SELECT * FROM data_sources WHERE id = 2;');
+          }
+          
+          // Check if it's a unique constraint error
+          if (mapPointsError.code === '23505' || mapPointsError.message?.includes('unique')) {
+            console.error('💡 Unique constraint violation. A map point with the same (property_id, source_id, name) already exists.');
+          }
+          
+          // Don't throw - map points are optional, but log the error clearly
+          console.warn('⚠️ Map points were not saved, but property submission continues');
+        } else {
+          console.log(`✅ Successfully inserted ${insertedMapPoints?.length || uniqueMapPoints.length} map points`);
+          if (insertedMapPoints && insertedMapPoints.length > 0) {
+            console.log('✅ Inserted map points:', insertedMapPoints.map(mp => ({ id: mp.id, name: mp.name, distance: mp.distance_km })));
           }
         }
       } else {
-        console.warn('No valid map points to insert after filtering (all were empty or invalid)');
+        if (formData.mapPoints.length > 0) {
+          console.warn(`⚠️ No valid map points to insert after filtering (${formData.mapPoints.length} provided but all were empty or invalid)`);
+        } else {
+          console.log('ℹ️ No map points provided in form data');
+        }
       }
     } else {
       console.log('No map points provided in formData');
