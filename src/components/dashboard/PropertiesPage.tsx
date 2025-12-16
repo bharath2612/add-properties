@@ -386,7 +386,7 @@ const PropertiesPage: React.FC = () => {
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
                         <Link
-                          to={`/property/${property.slug || property.id}`}
+                          to={`/property/${(property.slug && property.slug.trim() !== '') ? property.slug : property.id}`}
                           className="p-1.5 text-gray-500 dark:text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
                           title="View details"
                         >

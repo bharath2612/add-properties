@@ -31,23 +31,51 @@ const PropertyDetailsPage: React.FC = () => {
       setError(null);
 
       // Check if identifier is numeric (id) or string (slug)
-      const isNumeric = !isNaN(Number(identifier));
+      const isNumeric = !isNaN(Number(identifier)) && identifier.trim() !== '';
       
-      // Fetch property
-      const propertyQuery = baseClient
-        .from('properties')
-        .select('*');
+      let property = null;
       
       if (isNumeric) {
-        propertyQuery.eq('id', Number(identifier));
+        // If numeric, query by ID
+        const { data, error } = await baseClient
+          .from('properties')
+          .select('*')
+          .eq('id', Number(identifier))
+          .maybeSingle();
+        
+        if (data && !error) {
+          property = data;
+        }
       } else {
-        propertyQuery.eq('slug', identifier);
+        // If not numeric, try slug first
+        const { data: slugData, error: slugError } = await baseClient
+          .from('properties')
+          .select('*')
+          .eq('slug', identifier)
+          .maybeSingle();
+        
+        if (slugData && !slugError) {
+          property = slugData;
+        } else {
+          // Fallback: try as ID in case it's a numeric string or slug doesn't exist
+          const idValue = Number(identifier);
+          if (!isNaN(idValue) && idValue.toString() === identifier.trim()) {
+            const { data: idData, error: idError } = await baseClient
+              .from('properties')
+              .select('*')
+              .eq('id', idValue)
+              .maybeSingle();
+            
+            if (idData && !idError) {
+              property = idData;
+            }
+          }
+        }
       }
 
-      const { data: property, error: propertyError } = await propertyQuery.single();
-
-      if (propertyError || !property) {
-        throw new Error('Property not found');
+      if (!property) {
+        console.error('Property not found for identifier:', identifier);
+        throw new Error(`Property not found: ${identifier}`);
       }
 
       // Map old column names to new names for consistency
@@ -702,7 +730,7 @@ const PropertyDetailsPage: React.FC = () => {
                     ({property.external_id})
                   </span>
                 )}
-              </div>
+            </div>
               <p className="text-sm text-gray-600 dark:text-zinc-400">{property.area}{property.city ? `, ${property.city}` : ''}{property.country ? `, ${property.country}` : ''}</p>
             </div>
             <span className="px-3 py-1 text-xs border border-gray-300 dark:border-zinc-800 rounded text-gray-600 dark:text-zinc-400">
@@ -736,9 +764,9 @@ const PropertyDetailsPage: React.FC = () => {
                   onClick={() => saveSection('header_pricing', async () => {
                     const values = editValues['header_pricing'] || {};
                     const updates: any = {};
-                    // Use min_price_aed/max_price_aed for now (will be min_price/max_price after migration)
-                    if (values.min_price !== undefined) updates.min_price_aed = values.min_price ? Number(values.min_price) : null;
-                    if (values.max_price !== undefined) updates.max_price_aed = values.max_price ? Number(values.max_price) : null;
+                    // Use new column names (min_price, max_price)
+                    if (values.min_price !== undefined) updates.min_price = values.min_price ? Number(values.min_price) : null;
+                    if (values.max_price !== undefined) updates.max_price = values.max_price ? Number(values.max_price) : null;
                     
                     const { error } = await baseClient
                       .from('properties')
@@ -778,11 +806,11 @@ const PropertyDetailsPage: React.FC = () => {
             ) : (
               <>
                 {property.min_price && (
-                  <div>
+              <div>
                     <span className="text-gray-600 dark:text-zinc-500">From </span>
                     <span className="text-black dark:text-white font-medium">{formatPrice(property.min_price, property.price_currency)}</span>
-                  </div>
-                )}
+              </div>
+            )}
                 {property.max_price && (
                   <div>
                     <span className="text-gray-600 dark:text-zinc-500">To </span>
@@ -980,9 +1008,9 @@ const PropertyDetailsPage: React.FC = () => {
               onSave={async () => {
                 const values = editValues['pricing'] || {};
                 const updates: any = {};
-                // Use min_price_aed/max_price_aed for now (will be min_price/max_price after migration)
-                if (values.min_price !== undefined) updates.min_price_aed = values.min_price ? Number(values.min_price) : null;
-                if (values.max_price !== undefined) updates.max_price_aed = values.max_price ? Number(values.max_price) : null;
+                // Use new column names (min_price, max_price)
+                if (values.min_price !== undefined) updates.min_price = values.min_price ? Number(values.min_price) : null;
+                if (values.max_price !== undefined) updates.max_price = values.max_price ? Number(values.max_price) : null;
                 if (values.price_currency !== undefined) updates.price_currency = values.price_currency;
                 if (values.min_area !== undefined) updates.min_area = values.min_area ? Number(values.min_area) : null;
                 if (values.max_area !== undefined) updates.max_area = values.max_area ? Number(values.max_area) : null;
@@ -1924,19 +1952,36 @@ const PropertyDetailsPage: React.FC = () => {
                 const values = editValues['buildings'] || {};
                 const buildingUpdates = values.buildings || [];
                 
-                for (const buildingUpdate of buildingUpdates) {
+                // Filter out empty new buildings (no name and no image)
+                const validBuildings = buildingUpdates.filter((b: any) => {
+                  if (b._isNew) {
+                    // Allow new buildings if they have at least a name or an image
+                    return (b.name && b.name.trim() !== '') || (b.image_url && b.image_url.trim() !== '');
+                  }
+                  return true; // Keep all existing buildings for update
+                });
+                
+                for (const buildingUpdate of validBuildings) {
                   if (buildingUpdate._isNew) {
-                    // Insert new building
-                    if (buildingUpdate.name && buildingUpdate.name.trim() !== '') {
-                      await baseClient
+                    // Insert new building - allow even if name is empty (might have image or description)
+                    try {
+                      const { error } = await baseClient
                         .from('property_buildings')
                         .insert({
                           property_id: property.id,
-                          name: buildingUpdate.name,
-                          description: buildingUpdate.description || null,
-                          completion_date: buildingUpdate.completion_date || null,
-                          image_url: buildingUpdate.image_url || null,
+                          name: buildingUpdate.name && buildingUpdate.name.trim() !== '' ? buildingUpdate.name : null,
+                          description: buildingUpdate.description && buildingUpdate.description.trim() !== '' ? buildingUpdate.description : null,
+                          completion_date: buildingUpdate.completion_date && buildingUpdate.completion_date.trim() !== '' ? buildingUpdate.completion_date : null,
+                          image_url: buildingUpdate.image_url && buildingUpdate.image_url.trim() !== '' ? buildingUpdate.image_url : null,
                         });
+                      
+                      if (error) {
+                        console.error('Error inserting building:', error);
+                        throw error;
+                      }
+                    } catch (err) {
+                      console.error('Failed to insert building:', err);
+                      throw err;
                     }
                   } else {
                     // Update existing building
@@ -1957,15 +2002,20 @@ const PropertyDetailsPage: React.FC = () => {
                       }
                     }
                     
-                    await baseClient
+                    const { error: updateError } = await baseClient
                       .from('property_buildings')
                       .update({
-                        name: buildingUpdate.name || building.name,
-                        description: buildingUpdate.description !== undefined ? buildingUpdate.description : building.description,
-                        completion_date: buildingUpdate.completion_date || null,
-                        image_url: newImageUrl || null,
+                        name: buildingUpdate.name !== undefined ? (buildingUpdate.name && buildingUpdate.name.trim() !== '' ? buildingUpdate.name : null) : building.name,
+                        description: buildingUpdate.description !== undefined ? (buildingUpdate.description && buildingUpdate.description.trim() !== '' ? buildingUpdate.description : null) : building.description,
+                        completion_date: buildingUpdate.completion_date !== undefined ? (buildingUpdate.completion_date && buildingUpdate.completion_date.trim() !== '' ? buildingUpdate.completion_date : null) : building.completion_date,
+                        image_url: newImageUrl && newImageUrl.trim() !== '' ? newImageUrl : null,
                       })
                       .eq('id', building.id);
+                    
+                    if (updateError) {
+                      console.error('Error updating building:', updateError);
+                      throw updateError;
+                    }
                   }
                 }
                 
