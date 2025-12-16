@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFormContext } from '../../context/FormContext';
-import { supabase } from '../../lib/supabase';
+// Use base client since we're already behind DashboardAuth
+import { supabase as baseClient } from '../../lib/supabaseAuth';
 import { PartnerDeveloper } from '../../types/database.types';
 import { fetchDevelopers } from '../../utils/developerManagement';
 import DeveloperForm from '../developer/DeveloperForm';
@@ -21,14 +22,31 @@ const Step1Basic: React.FC = () => {
   const loadDevelopers = async () => {
     setLoadingDevelopers(true);
     try {
-      const { data, error } = await fetchDevelopers(supabase);
+      console.log('Fetching developers...');
+      const { data, error } = await fetchDevelopers(baseClient);
       if (error) {
-        console.error('Error fetching developers:', error);
+        console.error('❌ Error fetching developers:', {
+          error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        // Set empty array on error so UI doesn't break
+        setDevelopers([]);
       } else {
+        console.log(`✅ Successfully loaded ${data?.length || 0} developers`);
+        if (data && data.length > 0) {
+          console.log('Developers:', data.map(d => ({ id: d.id, name: d.name })));
+        } else {
+          console.warn('⚠️ No developers found in database');
+        }
         setDevelopers(data || []);
       }
-    } catch (error) {
-      console.error('Error fetching developers:', error);
+    } catch (error: any) {
+      console.error('❌ Exception while fetching developers:', error);
+      // Set empty array on exception so UI doesn't break
+      setDevelopers([]);
     } finally {
       setLoadingDevelopers(false);
     }
@@ -133,6 +151,21 @@ const Step1Basic: React.FC = () => {
             <div className={inputClasses}>
               <span className="text-gray-500 dark:text-zinc-400">Loading developers...</span>
             </div>
+          ) : developers.length === 0 ? (
+            <div className="space-y-2">
+              <div className={inputClasses + ' border-yellow-400 dark:border-yellow-600'}>
+                <span className="text-yellow-600 dark:text-yellow-400">No developers found. Click "+ Add Developer" to create one.</span>
+              </div>
+              <select
+                value={formData.developer_id || ''}
+                onChange={(e) => updateFormData({ developer_id: e.target.value ? Number(e.target.value) : null })}
+                className={inputClasses}
+                required
+                disabled
+              >
+                <option value="">No developers available</option>
+              </select>
+            </div>
           ) : (
             <div className="space-y-2">
               <select
@@ -199,7 +232,7 @@ const Step1Basic: React.FC = () => {
       {/* Developer Form Modal */}
       {showDeveloperForm && (
         <DeveloperForm
-          supabase={supabase}
+          supabase={baseClient}
           developer={editingDeveloper}
           onSuccess={handleDeveloperCreated}
           onClose={() => {
