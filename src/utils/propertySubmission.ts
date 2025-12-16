@@ -370,69 +370,71 @@ export const submitProperty = async (
 
     // Step 9: Insert Map Points
     // Note: source_id is required (NOT NULL) in the schema
+    console.log('Map points check:', {
+      hasMapPoints: !!formData.mapPoints,
+      mapPointsLength: formData.mapPoints?.length || 0,
+      mapPointsData: formData.mapPoints,
+    });
+    
     if (formData.mapPoints && formData.mapPoints.length > 0) {
-      // Get the property's source_id, or try to find a default source_id
+      // Get or create a default source_id for manual entries
       let defaultSourceId: number | null = null;
       
-      // First, try to get source_id from the property we just created
-      const { data: propertyData, error: propertyDataError } = await supabase
+      // Strategy 1: Try to get source_id from the property we just created
+      const { data: propertyData } = await supabase
         .from('properties')
         .select('source_id')
         .eq('id', property_id)
-        .single();
-      
-      if (propertyDataError) {
-        console.warn('Could not fetch property source_id:', propertyDataError.message);
-      }
+        .maybeSingle();
       
       if (propertyData?.source_id) {
         defaultSourceId = propertyData.source_id;
+        console.log(`Using property source_id: ${defaultSourceId}`);
       } else {
-        // Try to find a default source (e.g., 'manual' or first available)
-        const { data: defaultSource, error: defaultSourceError } = await supabase
+        // Strategy 2: Try to find 'manual' source
+        const { data: manualSource } = await supabase
           .from('data_sources')
           .select('id')
           .eq('code', 'manual')
           .maybeSingle();
         
-        if (defaultSourceError) {
-          console.warn('Could not fetch manual source:', defaultSourceError.message);
-        }
-        
-        if (defaultSource) {
-          defaultSourceId = defaultSource.id;
+        if (manualSource) {
+          defaultSourceId = manualSource.id;
+          console.log(`Using manual source_id: ${defaultSourceId}`);
         } else {
-          // Get the first available source_id
-          const { data: firstSource, error: firstSourceError } = await supabase
+          // Strategy 3: Get any existing source
+          const { data: anySource } = await supabase
             .from('data_sources')
             .select('id')
             .limit(1)
             .maybeSingle();
           
-          if (firstSourceError) {
-            console.warn('Could not fetch first source:', firstSourceError.message);
+          if (anySource) {
+            defaultSourceId = anySource.id;
+            console.log(`Using first available source_id: ${defaultSourceId}`);
+          } else {
+            // Strategy 4: Create a default 'manual' source if none exists
+            console.log('No data_sources found, creating default "manual" source...');
+            const { data: newSource, error: createError } = await supabase
+              .from('data_sources')
+              .insert({
+                code: 'manual',
+                name: 'Manual Entry',
+                active: true,
+              })
+              .select('id')
+              .single();
+            
+            if (createError) {
+              console.error('Failed to create manual source:', createError);
+              // Last resort: try source_id = 1 (might fail)
+              defaultSourceId = 1;
+              console.warn(`Using fallback source_id: ${defaultSourceId} (may fail if it doesn't exist)`);
+            } else if (newSource) {
+              defaultSourceId = newSource.id;
+              console.log(`Created and using new manual source_id: ${defaultSourceId}`);
+            }
           }
-          
-          if (firstSource) {
-            defaultSourceId = firstSource.id;
-          }
-        }
-      }
-      
-      // If we still don't have a source_id, we need to create one or use a hardcoded fallback
-      // For now, let's try to get ANY source_id, even if it means selecting from all sources
-      if (!defaultSourceId) {
-        const { data: anySource } = await supabase
-          .from('data_sources')
-          .select('id')
-          .limit(1);
-        
-        if (anySource && anySource.length > 0) {
-          defaultSourceId = anySource[0].id;
-        } else {
-          // Last resort: use 1 as fallback (might fail if source_id 1 doesn't exist)
-          console.error('No source_id found in data_sources table. Using fallback value of 1. This may cause insertion to fail.');
-          defaultSourceId = 1;
         }
       }
 
@@ -443,7 +445,7 @@ export const submitProperty = async (
           // Create a completely fresh object with ONLY the fields the database expects
           return {
             property_id: property_id,
-            source_id: defaultSourceId || 1, // Use default or fallback to 1
+            source_id: defaultSourceId!, // We should always have a source_id by now
             name: String(point.poi_name).trim(),
             distance_km: point.distance_km != null ? Number(point.distance_km) : null,
           };
@@ -451,36 +453,38 @@ export const submitProperty = async (
 
       if (validMapPoints.length > 0) {
         if (!defaultSourceId) {
-          console.warn('No source_id found for map points, using fallback value of 1');
-        }
-        
-        // Log what we're about to insert for debugging
-        console.log('Inserting map points:', JSON.stringify(validMapPoints, null, 2));
-        
-        const { error: mapPointsError } = await supabase
-          .from('property_map_points')
-          .insert(validMapPoints);
-
-        if (mapPointsError) {
-          console.error('Map points insertion error:', {
-            error: mapPointsError,
-            message: mapPointsError.message,
-            details: mapPointsError.details,
-            hint: mapPointsError.hint,
-            code: mapPointsError.code,
-            dataBeingInserted: JSON.stringify(validMapPoints, null, 2),
-          });
-          // Instead of throwing, log the error and continue
-          // Map points are optional, so we shouldn't fail the entire submission
-          console.warn('Failed to insert map points, but continuing with property submission');
+          console.error('CRITICAL: No source_id available for map points. Skipping insertion.');
+          console.warn('Map points will not be saved. Please ensure data_sources table has at least one record.');
         } else {
-          console.log(`Successfully inserted ${validMapPoints.length} map points`);
+          // Log what we're about to insert for debugging
+          console.log(`Inserting ${validMapPoints.length} map points with source_id: ${defaultSourceId}`);
+          console.log('Map points data:', JSON.stringify(validMapPoints, null, 2));
+          
+          const { data: insertedMapPoints, error: mapPointsError } = await supabase
+            .from('property_map_points')
+            .insert(validMapPoints)
+            .select();
+
+          if (mapPointsError) {
+            console.error('❌ Map points insertion FAILED:', {
+              error: mapPointsError,
+              message: mapPointsError.message,
+              details: mapPointsError.details,
+              hint: mapPointsError.hint,
+              code: mapPointsError.code,
+              dataBeingInserted: JSON.stringify(validMapPoints, null, 2),
+            });
+            // Don't throw - map points are optional, but log the error clearly
+            console.warn('⚠️ Map points were not saved, but property submission continues');
+          } else {
+            console.log(`✅ Successfully inserted ${insertedMapPoints?.length || validMapPoints.length} map points`);
+          }
         }
       } else {
-        console.warn('No valid map points to insert after filtering');
+        console.warn('No valid map points to insert after filtering (all were empty or invalid)');
       }
     } else {
-      console.warn('No map points provided in formData');
+      console.log('No map points provided in formData');
     }
 
     // Step 10: Insert Payment Plans
