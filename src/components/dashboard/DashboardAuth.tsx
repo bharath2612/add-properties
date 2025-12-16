@@ -30,8 +30,16 @@ const DashboardAuth: React.FC = () => {
     try {
       // Get the TOTP secret (from database or localStorage)
       const { getTOTPSecret } = await import('../../utils/auth2fa');
+      const { debugTOTPSecretTable } = await import('../../utils/auth2fa-db');
+      
+      // Debug: Check table status (only in development)
+      if (import.meta.env.DEV) {
+        await debugTOTPSecretTable();
+      }
+      
       const secret = await getTOTPSecret();
       if (!secret) {
+        console.error('2FA secret is null or empty');
         setError('2FA secret not found in database. Please contact your administrator.');
         setLoading(false);
         return;
