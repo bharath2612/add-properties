@@ -214,6 +214,14 @@ export const submitProperty = async (
           // Ensure we have area_unit from formData or unit
           const areaUnit = formData.area_unit || 'sqft';
           
+          // Calculate sqft values from m² if available (1 m² = 10.7639 sqft)
+          const units_area_from = unit.units_area_from_m2 != null 
+            ? Math.round(unit.units_area_from_m2 * 10.7639 * 100) / 100 
+            : null;
+          const units_area_to = unit.units_area_to_m2 != null 
+            ? Math.round(unit.units_area_to_m2 * 10.7639 * 100) / 100 
+            : null;
+          
           // Filter out blob URLs from image URLs
           const typicalImageUrl = unit.typical_unit_image_url && !unit.typical_unit_image_url.startsWith('blob:')
             ? unit.typical_unit_image_url
@@ -231,8 +239,8 @@ export const submitProperty = async (
             area_unit: areaUnit,
             units_area_from_m2: unit.units_area_from_m2 || null,
             units_area_to_m2: unit.units_area_to_m2 || null,
-            units_area_from: unit.units_area_from || null, // Also include sqft values if available
-            units_area_to: unit.units_area_to || null,
+            units_area_from: units_area_from, // Calculate from m²
+            units_area_to: units_area_to, // Calculate from m²
             units_price_from: unit.units_price_from || null,
             units_price_to: unit.units_price_to || null,
             price_currency: unitCurrency,
