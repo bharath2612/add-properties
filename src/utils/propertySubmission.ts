@@ -161,10 +161,11 @@ export const submitProperty = async (
     const property_id = newProperty.id;
 
     // Step 5: Insert Property Images
+    // Filter out blob URLs - they won't work after page reload
     const imagesToInsert: Array<{ property_id: number; image_url: string; category: string }> = [];
 
-    // Add cover image if provided
-    if (formData.cover_url && formData.cover_url.trim()) {
+    // Add cover image if provided (skip blob URLs)
+    if (formData.cover_url && formData.cover_url.trim() && !formData.cover_url.startsWith('blob:')) {
       imagesToInsert.push({
         property_id: property_id,
         image_url: formData.cover_url.trim(),
@@ -172,9 +173,12 @@ export const submitProperty = async (
       });
     }
 
-    // Add additional images if provided
+    // Add additional images if provided (skip blob URLs)
     if (formData.image_urls && formData.image_urls.trim()) {
-      const imageUrls = formData.image_urls.split(',').map(url => url.trim()).filter(url => url);
+      const imageUrls = formData.image_urls
+        .split(',')
+        .map(url => url.trim())
+        .filter(url => url && !url.startsWith('blob:'));
       imageUrls.forEach((url) => {
         imagesToInsert.push({
           property_id: property_id,
@@ -192,6 +196,8 @@ export const submitProperty = async (
       if (imagesError) {
         console.error('Failed to insert property images:', imagesError.message);
       }
+    } else {
+      console.warn('No valid images to insert (all were blob URLs or empty)');
     }
 
     // Step 6: Insert Unit Types
@@ -205,58 +211,101 @@ export const submitProperty = async (
           const units_price_from_aed = convertToAED(unit.units_price_from, unitCurrency);
           const units_price_to_aed = convertToAED(unit.units_price_to, unitCurrency);
 
+          // Ensure we have area_unit from formData or unit
+          const areaUnit = formData.area_unit || 'sqft';
+          
+          // Filter out blob URLs from image URLs
+          const typicalImageUrl = unit.typical_unit_image_url && !unit.typical_unit_image_url.startsWith('blob:')
+            ? unit.typical_unit_image_url
+            : null;
+
           return {
             property_id: property_id,
             external_id: unit.id || null,
+            name: null, // Can be set if needed
             unit_type: unit.unit_type.trim(),
             normalized_type: unit.normalized_type || null,
             unit_bedrooms: unit.unit_bedrooms.trim(),
+            bedrooms_amount: unit.unit_bedrooms.trim(), // Also set bedrooms_amount
             units_amount: unit.units_amount || null,
+            area_unit: areaUnit,
             units_area_from_m2: unit.units_area_from_m2 || null,
             units_area_to_m2: unit.units_area_to_m2 || null,
+            units_area_from: unit.units_area_from || null, // Also include sqft values if available
+            units_area_to: unit.units_area_to || null,
             units_price_from: unit.units_price_from || null,
             units_price_to: unit.units_price_to || null,
             price_currency: unitCurrency,
             units_price_from_aed: units_price_from_aed,
             units_price_to_aed: units_price_to_aed,
-            typical_unit_image_url: unit.typical_unit_image_url || null,
+            typical_unit_image_url: typicalImageUrl,
+            typical_image_url: typicalImageUrl, // Some schemas use this field
           };
         });
 
       if (validUnitBlocks.length > 0) {
+        console.log(`Inserting ${validUnitBlocks.length} unit blocks:`, JSON.stringify(validUnitBlocks, null, 2));
         const { error: unitsError } = await supabase
           .from('property_unit_blocks')
           .insert(validUnitBlocks);
 
         if (unitsError) {
+          console.error('Unit blocks insertion error details:', {
+            error: unitsError,
+            message: unitsError.message,
+            details: unitsError.details,
+            hint: unitsError.hint,
+            code: unitsError.code,
+          });
           throw new Error(`Failed to insert unit blocks: ${unitsError.message}`);
+        } else {
+          console.log(`Successfully inserted ${validUnitBlocks.length} unit blocks`);
         }
+      } else {
+        console.warn('No valid unit blocks to insert after filtering');
       }
+    } else {
+      console.warn('No unit types provided in formData');
     }
 
     // Step 7: Insert Buildings
     if (formData.buildings && formData.buildings.length > 0) {
-      // Filter out invalid buildings
+      // Filter out invalid buildings and blob URLs
       const validBuildings = formData.buildings
         .filter(building => building && building.building_name && building.building_name.trim())
-        .map(building => ({
-          property_id: property_id,
-          external_id: building.id || null,
-          name: building.building_name.trim(),
-          description: building.building_description || null,
-          completion_date: building.building_completion_date || null,
-          image_url: building.building_image_url || null,
-        }));
+        .map(building => {
+          // Filter out blob URLs from image_url
+          const imageUrl = building.building_image_url && !building.building_image_url.startsWith('blob:')
+            ? building.building_image_url
+            : null;
+          
+          return {
+            property_id: property_id,
+            external_id: building.id || null,
+            name: building.building_name.trim(),
+            description: building.building_description || null,
+            completion_date: building.building_completion_date || null,
+            image_url: imageUrl,
+          };
+        });
 
       if (validBuildings.length > 0) {
+        console.log(`Inserting ${validBuildings.length} buildings:`, JSON.stringify(validBuildings, null, 2));
         const { error: buildingsError } = await supabase
           .from('property_buildings')
           .insert(validBuildings);
 
         if (buildingsError) {
+          console.error('Buildings insertion error:', buildingsError);
           throw new Error(`Failed to insert buildings: ${buildingsError.message}`);
+        } else {
+          console.log(`Successfully inserted ${validBuildings.length} buildings`);
         }
+      } else {
+        console.warn('No valid buildings to insert after filtering');
       }
+    } else {
+      console.warn('No buildings provided in formData');
     }
 
     // Step 8: Handle Facilities (check if exists, create if not, then link)
@@ -291,12 +340,17 @@ export const submitProperty = async (
         }
 
         // Link facility to property
+        // Filter out blob URLs from facility image_url
+        const facilityImageUrl = facility.facility_image_url && !facility.facility_image_url.startsWith('blob:')
+          ? facility.facility_image_url
+          : null;
+        
         const { error: propertyFacilityError } = await supabase
           .from('property_facilities')
           .insert({
             property_id: property_id,
             facility_id: facility_id,
-            image_url: facility.facility_image_url || null,
+            image_url: facilityImageUrl,
             image_source: facility.facility_image_source || null,
           });
 
@@ -307,7 +361,73 @@ export const submitProperty = async (
     }
 
     // Step 9: Insert Map Points
+    // Note: source_id is required (NOT NULL) in the schema
     if (formData.mapPoints && formData.mapPoints.length > 0) {
+      // Get the property's source_id, or try to find a default source_id
+      let defaultSourceId: number | null = null;
+      
+      // First, try to get source_id from the property we just created
+      const { data: propertyData, error: propertyDataError } = await supabase
+        .from('properties')
+        .select('source_id')
+        .eq('id', property_id)
+        .single();
+      
+      if (propertyDataError) {
+        console.warn('Could not fetch property source_id:', propertyDataError.message);
+      }
+      
+      if (propertyData?.source_id) {
+        defaultSourceId = propertyData.source_id;
+      } else {
+        // Try to find a default source (e.g., 'manual' or first available)
+        const { data: defaultSource, error: defaultSourceError } = await supabase
+          .from('data_sources')
+          .select('id')
+          .eq('code', 'manual')
+          .maybeSingle();
+        
+        if (defaultSourceError) {
+          console.warn('Could not fetch manual source:', defaultSourceError.message);
+        }
+        
+        if (defaultSource) {
+          defaultSourceId = defaultSource.id;
+        } else {
+          // Get the first available source_id
+          const { data: firstSource, error: firstSourceError } = await supabase
+            .from('data_sources')
+            .select('id')
+            .limit(1)
+            .maybeSingle();
+          
+          if (firstSourceError) {
+            console.warn('Could not fetch first source:', firstSourceError.message);
+          }
+          
+          if (firstSource) {
+            defaultSourceId = firstSource.id;
+          }
+        }
+      }
+      
+      // If we still don't have a source_id, we need to create one or use a hardcoded fallback
+      // For now, let's try to get ANY source_id, even if it means selecting from all sources
+      if (!defaultSourceId) {
+        const { data: anySource } = await supabase
+          .from('data_sources')
+          .select('id')
+          .limit(1);
+        
+        if (anySource && anySource.length > 0) {
+          defaultSourceId = anySource[0].id;
+        } else {
+          // Last resort: use 1 as fallback (might fail if source_id 1 doesn't exist)
+          console.error('No source_id found in data_sources table. Using fallback value of 1. This may cause insertion to fail.');
+          defaultSourceId = 1;
+        }
+      }
+
       // Filter out invalid map points and ensure name is not empty
       const validMapPoints = formData.mapPoints
         .filter(point => point && point.poi_name && point.poi_name.trim())
@@ -315,12 +435,17 @@ export const submitProperty = async (
           // Create a completely fresh object with ONLY the fields the database expects
           return {
             property_id: property_id,
+            source_id: defaultSourceId || 1, // Use default or fallback to 1
             name: String(point.poi_name).trim(),
             distance_km: point.distance_km != null ? Number(point.distance_km) : null,
           };
         });
 
       if (validMapPoints.length > 0) {
+        if (!defaultSourceId) {
+          console.warn('No source_id found for map points, using fallback value of 1');
+        }
+        
         // Log what we're about to insert for debugging
         console.log('Inserting map points:', JSON.stringify(validMapPoints, null, 2));
         
@@ -343,10 +468,15 @@ export const submitProperty = async (
         } else {
           console.log(`Successfully inserted ${validMapPoints.length} map points`);
         }
+      } else {
+        console.warn('No valid map points to insert after filtering');
       }
+    } else {
+      console.warn('No map points provided in formData');
     }
 
-    // Step 10: Insert Payment Plans and Values
+    // Step 10: Insert Payment Plans
+    // Note: The schema uses 'plan_name' (not 'name') and 'payments' as jsonb (not separate table)
     if (formData.paymentPlans && formData.paymentPlans.length > 0) {
       // Filter out invalid payment plans
       const validPaymentPlans = formData.paymentPlans.filter(
@@ -354,40 +484,39 @@ export const submitProperty = async (
       );
 
       for (const plan of validPaymentPlans) {
-        // Insert payment plan header (without description field - it doesn't exist in the table)
-        const { data: newPlan, error: planError } = await supabase
+        // Parse payment steps into JSONB array format
+        let paymentsJsonb: any[] = [];
+        
+        if (plan.payment_steps && plan.payment_steps.trim()) {
+          // Support both comma-separated and pipe-separated formats
+          const steps = plan.payment_steps.split(/[,|]/).map(s => s.trim()).filter(s => s);
+          paymentsJsonb = steps.map((step, index) => ({
+            step: index + 1,
+            description: step,
+            percentage: null, // Can be parsed from step if needed
+          }));
+        }
+
+        // If no steps provided, create empty array
+        if (paymentsJsonb.length === 0) {
+          paymentsJsonb = [];
+        }
+
+        // Insert payment plan with correct field names
+        const { error: planError } = await supabase
           .from('property_payment_plans')
           .insert({
             property_id: property_id,
-            name: plan.payment_plan_name.trim(),
-          })
-          .select('id')
-          .single();
+            plan_name: plan.payment_plan_name.trim(), // Use 'plan_name' not 'name'
+            months_after_handover: plan.months_after_handover || 0,
+            payments: paymentsJsonb, // Use 'payments' jsonb field
+          });
 
         if (planError) {
           console.error(`Failed to insert payment plan "${plan.payment_plan_name}":`, planError.message);
-          continue;
-        }
-
-        // Parse and insert payment steps
-        if (plan.payment_steps && plan.payment_steps.trim()) {
-          const steps = plan.payment_steps.split(',').map(s => s.trim()).filter(s => s);
-          if (steps.length > 0) {
-            const planValues = steps.map((step, index) => ({
-              property_payment_plan_id: newPlan.id,
-              name: `Step ${index + 1}`,
-              value_raw: step,
-              sequence: index + 1,
-            }));
-
-            const { error: valuesError } = await supabase
-              .from('payment_plan_values')
-              .insert(planValues);
-
-            if (valuesError) {
-              console.error(`Failed to insert payment plan values:`, valuesError.message);
-            }
-          }
+          console.error('Plan data:', { plan_name: plan.payment_plan_name, payments: paymentsJsonb });
+        } else {
+          console.log(`Successfully inserted payment plan: ${plan.payment_plan_name}`);
         }
       }
     }

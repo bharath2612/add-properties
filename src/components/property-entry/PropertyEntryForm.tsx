@@ -141,6 +141,8 @@ const PropertyEntryForm: React.FC = () => {
       // In production we block submission; in development we only warn,
       // because the R2 dev mock intentionally uses blob: URLs.
       const blobUrlFields: string[] = [];
+      
+      // Check main property media fields
       if (oldFormData.video_url && oldFormData.video_url.startsWith('blob:')) {
         blobUrlFields.push('Video URL');
       }
@@ -153,13 +155,43 @@ const PropertyEntryForm: React.FC = () => {
       if (oldFormData.cover_url && oldFormData.cover_url.startsWith('blob:')) {
         blobUrlFields.push('Cover Image');
       }
+      
+      // Check additional images
+      if (oldFormData.image_urls) {
+        const imageUrls = oldFormData.image_urls.split(',').map(url => url.trim());
+        const blobImages = imageUrls.filter(url => url.startsWith('blob:'));
+        if (blobImages.length > 0) {
+          blobUrlFields.push(`${blobImages.length} Additional Image(s)`);
+        }
+      }
+      
+      // Check building images
+      oldFormData.buildings?.forEach((building, index) => {
+        if (building.building_image_url && building.building_image_url.startsWith('blob:')) {
+          blobUrlFields.push(`Building "${building.building_name || `#${index + 1}`}" Image`);
+        }
+      });
+      
+      // Check unit block images
+      oldFormData.unitTypes?.forEach((unit, index) => {
+        if (unit.typical_unit_image_url && unit.typical_unit_image_url.startsWith('blob:')) {
+          blobUrlFields.push(`Unit Type "${unit.unit_type || `#${index + 1}`}" Image`);
+        }
+      });
+      
+      // Check facility images
+      oldFormData.facilities?.forEach((facility, index) => {
+        if (facility.facility_image_url && facility.facility_image_url.startsWith('blob:')) {
+          blobUrlFields.push(`Facility "${facility.facility_name || `#${index + 1}`}" Image`);
+        }
+      });
 
       if (blobUrlFields.length > 0) {
         if (import.meta.env.PROD) {
           // In production, block submission to ensure files are actually uploaded to storage.
           showError(
-            `Please upload the following files properly (they are currently temporary blob URLs): ${blobUrlFields.join(', ')}. Files must be uploaded to storage before submission.`,
-            10000
+            `Please upload the following files properly (they are currently temporary blob URLs):\n${blobUrlFields.join('\n')}\n\nFiles must be uploaded to storage before submission.`,
+            15000
           );
           setIsSubmitting(false);
           return;
@@ -167,8 +199,13 @@ const PropertyEntryForm: React.FC = () => {
           // In dev, just log a warning so you can still test the flow
           // when using the R2 mock (which returns blob: URLs).
           console.warn(
-            'Submitting with blob: URLs in development mode (from R2 mock upload). Fields:',
+            '⚠️ Submitting with blob: URLs in development mode (from R2 mock upload). Fields:',
             blobUrlFields
+          );
+          // Show a warning toast but allow submission in dev
+          showError(
+            `Warning: ${blobUrlFields.length} file(s) still have blob URLs. In production, these would be blocked.`,
+            5000
           );
         }
       }
