@@ -479,15 +479,19 @@ export const submitProperty = async (
           if (mapPointsError.code === '23503' || mapPointsError.message?.includes('foreign key')) {
             console.error('💡 Foreign key constraint violation. Ensure source_id 2 exists in data_sources table.');
             console.error('💡 Run: SELECT * FROM data_sources WHERE id = 2;');
+            console.error('💡 If it doesn\'t exist, create it: INSERT INTO data_sources (id, code, name, active) VALUES (2, \'manual\', \'Manual Entry\', true);');
           }
           
           // Check if it's a unique constraint error
           if (mapPointsError.code === '23505' || mapPointsError.message?.includes('unique')) {
             console.error('💡 Unique constraint violation. A map point with the same (property_id, source_id, name) already exists.');
+            console.error('💡 This might mean map points were already inserted for this property.');
           }
           
           // Don't throw - map points are optional, but log the error clearly
           console.warn('⚠️ Map points were not saved, but property submission continues');
+          console.warn('⚠️ Property was created successfully, but map points could not be inserted.');
+          console.warn('⚠️ You may need to manually add map points or fix the database issue.');
         } else {
           console.log(`✅ Successfully inserted ${insertedMapPoints?.length || uniqueMapPoints.length} map points`);
           if (insertedMapPoints && insertedMapPoints.length > 0) {
@@ -497,6 +501,8 @@ export const submitProperty = async (
       } else {
         if (formData.mapPoints.length > 0) {
           console.warn(`⚠️ No valid map points to insert after filtering (${formData.mapPoints.length} provided but all were empty or invalid)`);
+          console.warn('⚠️ Map points that were filtered out:', formData.mapPoints);
+          console.warn('💡 Make sure each map point has a non-empty "poi_name" field');
         } else {
           console.log('ℹ️ No map points provided in form data');
         }

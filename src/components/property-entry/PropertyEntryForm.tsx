@@ -136,6 +136,16 @@ const PropertyEntryForm: React.FC = () => {
       // Convert back to old FormData for backward compatibility with submitProperty
       // TODO: Update submitProperty to accept new payload structure
       const oldFormData = convertToOldFormData(propertyFormData);
+      
+      // Debug: Log map points through the conversion chain
+      console.log('🔍 Map points conversion check:', {
+        originalFormData: formData.mapPoints?.length || 0,
+        propertyFormData: propertyFormData.map_points?.length || 0,
+        oldFormData: oldFormData.mapPoints?.length || 0,
+        originalData: formData.mapPoints,
+        convertedData: propertyFormData.map_points,
+        finalData: oldFormData.mapPoints,
+      });
 
       // Check for blob URLs that need to be uploaded first.
       // In production we block submission; in development we only warn,

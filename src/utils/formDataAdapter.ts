@@ -93,8 +93,8 @@ export function convertToPropertyFormData(oldData: FormData): PropertyFormData {
     image: facility.facility_image_url ? { url: facility.facility_image_url } : null,
   }));
 
-  // Convert map points
-  const map_points: MapPointFormData[] = oldData.mapPoints.map(point => ({
+  // Convert map points - handle undefined/null case
+  const map_points: MapPointFormData[] = (oldData.mapPoints || []).map(point => ({
     name: point.poi_name || '',
     distance_km: point.distance_km || null,
   }));
@@ -211,10 +211,10 @@ export function convertToOldFormData(newData: PropertyFormData): FormData {
       facility_image_url: facility.image_url || facility.image?.url || '',
       facility_image_source: facility.image_source || '',
     })),
-    mapPoints: newData.map_points.map(point => ({
-      id: Date.now().toString(),
-      poi_name: point.name,
-      distance_km: point.distance_km || null,
+    mapPoints: (newData.map_points || []).map((point, index) => ({
+      id: `${Date.now()}-${index}`,
+      poi_name: point.name || '', // Ensure it's always a string, not undefined
+      distance_km: point.distance_km != null ? point.distance_km : null,
     })),
     cover_url: newData.cover_image?.url || newData.cover_url || '',
     // Use the preserved image_urls if available, otherwise reconstruct from image arrays
