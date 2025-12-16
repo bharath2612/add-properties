@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { mockR2Upload, isProductionMode } from './devUploadMock';
 
@@ -212,4 +212,66 @@ export const uploadMultipleToR2 = async (
   }
 
   return results;
+};
+
+/**
+ * Extract the key from an R2 public URL
+ * Assumes URL format: https://domain/bucket/key or https://domain/key
+ */
+export const extractKeyFromUrl = (url: string): string | null => {
+  try {
+    const urlObj = new URL(url);
+    // Remove leading slash from pathname
+    const path = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+    return path || null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Delete a file from R2 storage
+ */
+export const deleteFromR2 = async (url: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const accountId = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID;
+    const accessKeyId = import.meta.env.VITE_R2_ACCESS_KEY_ID;
+    const secretAccessKey = import.meta.env.VITE_R2_SECRET_ACCESS_KEY;
+    const bucketName = import.meta.env.VITE_R2_BUCKET_NAME;
+
+    if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+      const isDev = !isProductionMode();
+      if (isDev) {
+        console.warn('🧪 Development mode: Missing R2 credentials, skipping delete');
+        return { success: true }; // Don't fail in dev mode
+      }
+      return { success: false, error: 'Delete configuration missing' };
+    }
+
+    const key = extractKeyFromUrl(url);
+    if (!key) {
+      return { success: false, error: 'Could not extract key from URL' };
+    }
+
+    const client = new S3Client({
+      region: "auto",
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey,
+      },
+    });
+
+    const command = new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+
+    await client.send(command);
+    console.log('✅ File deleted from R2:', key);
+    return { success: true };
+  } catch (error: any) {
+    console.error('❌ Error deleting file from R2:', error);
+    return { success: false, error: error.message || 'Failed to delete file' };
+  }
 };
