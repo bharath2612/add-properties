@@ -318,27 +318,28 @@ const HomePage: React.FC = () => {
         countryStatsResult,
         upcomingCompletionsResult,
       ] = await Promise.all([
-        // 1. Total count
+        // 1. Total count - using id to ensure accurate count
+        // Note: If count is inaccurate, check RLS policies in Supabase dashboard
         supabase
           .from('properties')
-          .select('*', { count: 'exact', head: true }),
+          .select('id', { count: 'exact', head: true }),
 
-        // 2. Under construction count
+        // 2. Under construction count - using id for consistency and efficiency
         supabase
           .from('properties')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('status', 'Under construction'),
 
-        // 3. Completed count
+        // 3. Completed count - using id for consistency and efficiency
         supabase
           .from('properties')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('status', 'Completed'),
 
-        // 4. On Sale count
+        // 4. On Sale count - using id for consistency and efficiency
         supabase
           .from('properties')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('status', 'On Sale'),
 
         // 5. Recent 5 properties with developer name (select all to handle schema differences)
@@ -354,10 +355,12 @@ const HomePage: React.FC = () => {
           .select('developer_id, partner_developers(name)')
           .not('developer_id', 'is', null),
 
-        // 7. Country stats - get all properties with country field
+        // 7. Country stats - get all properties with country field for accurate counting
+        // Note: Supabase has a default limit of 1000 rows, so we explicitly set a high limit
         supabase
           .from('properties')
-          .select('country'),
+          .select('id, country')
+          .limit(10000), // Set a high limit to get all properties (should cover 1783+ properties)
 
         // 8. Upcoming completions - get properties with future completion dates
         supabase
@@ -397,23 +400,87 @@ const HomePage: React.FC = () => {
         .sort((a, b) => b.properties - a.properties)
         .slice(0, 5);
 
-      // Process country stats - count properties per country
+      // Process country stats - count properties per country with normalization
       const countryCounts: Record<string, number> = {};
+      
+      // Helper function to normalize country names
+      const normalizeCountryName = (country: string | null | undefined): string => {
+        if (!country || typeof country !== 'string') return 'Unknown';
+        
+        const trimmed = country.trim();
+        if (!trimmed || trimmed.length < 2) return 'Unknown';
+        
+        // Filter out obvious junk data (very short, random characters, etc.)
+        if (trimmed.length < 3 || /^[^a-zA-Z]+$/.test(trimmed)) {
+          return 'Unknown';
+        }
+        
+        // Normalize common variations
+        const lower = trimmed.toLowerCase();
+        
+        // Handle UAE variations
+        if (lower === 'uae' || lower === 'united arab emirates' || lower === 'united arab emirate') {
+          return 'United Arab Emirates';
+        }
+        
+        // Handle other common variations - capitalize first letter of each word
+        return trimmed
+          .split(/\s+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      };
+      
       if (countryStatsResult.data) {
         countryStatsResult.data.forEach((prop: any) => {
-          const country = prop.country || 'Unknown';
-          countryCounts[country] = (countryCounts[country] || 0) + 1;
+          const normalizedCountry = normalizeCountryName(prop.country);
+          countryCounts[normalizedCountry] = (countryCounts[normalizedCountry] || 0) + 1;
         });
       }
+      
+      // Log country stats for debugging
+      const totalProcessed = countryStatsResult.data?.length || 0;
+      const sumOfCountryCounts = Object.values(countryCounts).reduce((sum, count) => sum + count, 0);
+      
+      console.log('🌍 Country Stats:');
+      console.log(`  Total properties processed: ${totalProcessed}`);
+      console.log(`  Expected total (from main query): ${totalCount}`);
+      console.log(`  Sum of country counts: ${sumOfCountryCounts}`);
+      
+      // Warn if we're not getting all the data
+      if (totalProcessed < totalCount) {
+        console.warn(
+          `⚠️ Country stats only processed ${totalProcessed} properties, but total count is ${totalCount}. ` +
+          `Missing ${totalCount - totalProcessed} properties. This might be due to Supabase query limits or RLS filtering.`
+        );
+      }
+      
+      console.log(`  Unique countries (after normalization): ${Object.keys(countryCounts).length}`);
+      const uaeCount = countryCounts['United Arab Emirates'] || 0;
+      console.log(`  United Arab Emirates count: ${uaeCount}`);
+      if (uaeCount < 1459) {
+        console.warn(
+          `⚠️ UAE count (${uaeCount}) is lower than expected (1459). ` +
+          `This might indicate RLS filtering or data issues.`
+        );
+      }
 
-      // Convert to array format for bar chart - get top 10 countries
+      // Convert to array format for bar chart - get top 5 countries only
+      // Filter out 'Unknown' from top results if there are real countries
       const countryStats = Object.entries(countryCounts)
         .map(([name, value]) => ({
           name: name || 'Unknown',
           value: value,
         }))
+        .filter(item => {
+          // Keep Unknown only if it's significant, otherwise prefer real countries
+          if (item.name === 'Unknown' && item.value < 50) return false;
+          return true;
+        })
         .sort((a, b) => b.value - a.value)
-        .slice(0, 10);
+        .slice(0, 5); // Changed from 10 to 5
+      
+      // Log top countries
+      console.log('  Top countries:', countryStats.slice(0, 5).map(c => `${c.name}: ${c.value}`).join(', '));
 
       // Process upcoming completions
       const now = new Date();
@@ -439,11 +506,123 @@ const HomePage: React.FC = () => {
         developer_name: prop.partner_developers?.name || 'Unknown',
       }));
 
-      setAnalytics({
-        totalProperties: totalResult.count || 0,
+      // Log count for debugging
+      if (totalResult.error) {
+        console.error('❌ Error fetching total count:', totalResult.error);
+      }
+      
+      // Get the total count
+      let totalCount = totalResult.count ?? 0;
+      
+      // Verify count by checking UAE properties specifically
+      // This helps identify if RLS is filtering properties
+      const uaeCountResult = await supabase
+        .from('properties')
+        .select('id', { count: 'exact', head: true })
+        .eq('country', 'United Arab Emirates');
+      
+      // Also try getting count without any filters to verify
+      const allPropertiesCount = await supabase
+        .from('properties')
+        .select('id', { count: 'exact', head: true });
+      
+      // Try a different approach - get a sample to verify access
+      const sampleCheck = await supabase
+        .from('properties')
+        .select('id, country')
+        .limit(5);
+      
+      console.group('🔍 Property Count Diagnostics');
+      console.log('Total properties count (query 1):', totalCount);
+      console.log('Total properties count (query 2):', allPropertiesCount.count);
+      console.log('UAE properties count:', uaeCountResult.count);
+      console.log('UAE count error:', uaeCountResult.error);
+      console.log('Sample properties accessible:', sampleCheck.data?.length || 0);
+      console.log('Sample check error:', sampleCheck.error);
+      
+      // If UAE count is lower than expected (1459), RLS is definitely filtering
+      if (uaeCountResult.count !== null && uaeCountResult.count < 1459) {
+        const missing = 1459 - uaeCountResult.count;
+        console.error(
+          `❌ RLS POLICY ISSUE: Database has 1459 UAE properties, but query returns only ${uaeCountResult.count}. ` +
+          `${missing} properties are being filtered by RLS policies.`
+        );
+        console.error('👉 ACTION REQUIRED: Check Supabase RLS policies for the "properties" table.');
+        console.error('👉 Run this SQL in Supabase SQL Editor:');
+        console.error(`
+CREATE POLICY "Allow public read access to all properties"
+ON public.properties
+FOR SELECT
+TO anon, authenticated
+USING (true);
+        `);
+      } else if (uaeCountResult.count === 1459) {
+        console.log('✅ UAE count is correct (1459)');
+      }
+      
+      // If total count is significantly lower than UAE count alone, RLS is filtering
+      if (totalCount < (uaeCountResult.count || 0)) {
+        console.error(
+          `❌ Total count (${totalCount}) is less than UAE count (${uaeCountResult.count}). ` +
+          `This indicates RLS policies are filtering properties globally.`
+        );
+      }
+      
+      // Check if counts match between queries
+      if (totalCount !== allPropertiesCount.count) {
+        console.warn(`⚠️ Count mismatch: Query 1 = ${totalCount}, Query 2 = ${allPropertiesCount.count}`);
+      }
+      
+      console.groupEnd();
+      
+      // Use the higher count if there's a discrepancy
+      if (allPropertiesCount.count && allPropertiesCount.count > totalCount) {
+        console.warn(`Using higher count: ${allPropertiesCount.count} instead of ${totalCount}`);
+        totalCount = allPropertiesCount.count;
+      }
+
+      // Verify counts add up correctly (with some tolerance for other statuses)
+      const statusCounts = {
         underConstruction: underConstructionResult.count || 0,
         completed: completedResult.count || 0,
         onSale: onSaleResult.count || 0,
+      };
+      
+      const sumOfStatusCounts = statusCounts.underConstruction + statusCounts.completed + statusCounts.onSale;
+      const otherStatuses = totalCount - sumOfStatusCounts;
+      
+      console.log('📊 Count Verification:');
+      console.log(`  Total: ${totalCount}`);
+      console.log(`  Under Construction: ${statusCounts.underConstruction}`);
+      console.log(`  Completed: ${statusCounts.completed}`);
+      console.log(`  On Sale: ${statusCounts.onSale}`);
+      console.log(`  Other statuses: ${otherStatuses}`);
+      console.log(`  Sum check: ${sumOfStatusCounts} + ${otherStatuses} = ${totalCount}`);
+      
+      // Warn if counts don't add up (might indicate RLS filtering or data issues)
+      if (otherStatuses < 0) {
+        console.warn(
+          `⚠️ Count mismatch: Status counts (${sumOfStatusCounts}) exceed total (${totalCount}). ` +
+          `This might indicate RLS filtering or data inconsistencies.`
+        );
+      }
+      
+      // Log any errors from status queries
+      if (underConstructionResult.error) {
+        console.error('❌ Error fetching under construction count:', underConstructionResult.error);
+      }
+      if (completedResult.error) {
+        console.error('❌ Error fetching completed count:', completedResult.error);
+      }
+      if (onSaleResult.error) {
+        console.error('❌ Error fetching on sale count:', onSaleResult.error);
+      }
+
+      setAnalytics({
+        totalProperties: totalCount,
+        underConstruction: statusCounts.underConstruction,
+        completed: statusCounts.completed,
+        onSale: statusCounts.onSale,
         avgPrice,
         recentProperties,
         developerStats,
@@ -543,7 +722,7 @@ const HomePage: React.FC = () => {
 
         {/* Country Distribution */}
         <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 10 Countries by Properties</h3>
+          <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 5 Countries by Properties</h3>
           {analytics.countryStats.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart 
