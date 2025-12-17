@@ -11,6 +11,7 @@ interface Analytics {
   avgPrice: number;
   recentProperties: any[];
   developerStats: { name: string; properties: number }[];
+  countryStats: { name: string; value: number }[];
 }
 
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
@@ -26,6 +27,7 @@ const HomePage: React.FC = () => {
     avgPrice: 0,
     recentProperties: [],
     developerStats: [],
+    countryStats: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -47,6 +49,7 @@ const HomePage: React.FC = () => {
         onSaleResult,
         recentResult,
         developerStatsResult,
+        countryStatsResult,
       ] = await Promise.all([
         // 1. Total count
         supabase
@@ -83,6 +86,11 @@ const HomePage: React.FC = () => {
           .from('properties')
           .select('developer_id, partner_developers(name)')
           .not('developer_id', 'is', null),
+
+        // 7. Country stats - get all properties with country field
+        supabase
+          .from('properties')
+          .select('country'),
       ]);
 
       // Calculate average price from recent properties if they have price data
@@ -113,6 +121,24 @@ const HomePage: React.FC = () => {
         .sort((a, b) => b.properties - a.properties)
         .slice(0, 5);
 
+      // Process country stats - count properties per country
+      const countryCounts: Record<string, number> = {};
+      if (countryStatsResult.data) {
+        countryStatsResult.data.forEach((prop: any) => {
+          const country = prop.country || 'Unknown';
+          countryCounts[country] = (countryCounts[country] || 0) + 1;
+        });
+      }
+
+      // Convert to array format for bar chart - get top 10 countries
+      const countryStats = Object.entries(countryCounts)
+        .map(([name, value]) => ({
+          name: name || 'Unknown',
+          value: value,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10);
+
       // Map recent properties with developer names
       const recentProperties = (recentResult.data || []).map((prop: any) => ({
         ...prop,
@@ -127,6 +153,7 @@ const HomePage: React.FC = () => {
         avgPrice,
         recentProperties,
         developerStats,
+        countryStats,
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -178,7 +205,7 @@ const HomePage: React.FC = () => {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
         {/* Status Distribution */}
         <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Status Distribution</h3>
@@ -215,6 +242,61 @@ const HomePage: React.FC = () => {
           ) : (
             <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
               No data available
+            </div>
+          )}
+        </div>
+
+        {/* Country Distribution */}
+        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 10 Countries by Properties</h3>
+          {analytics.countryStats.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart 
+                data={analytics.countryStats.map(c => ({ name: c.name, properties: c.value }))} 
+                layout="vertical" 
+                margin={{ left: 10, right: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
+                <XAxis 
+                  type="number"
+                  stroke="#6b7280"
+                  style={{ fontSize: '11px' }}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <YAxis 
+                  type="category" 
+                  dataKey="name"
+                  width={100}
+                  stroke="#6b7280"
+                  style={{ fontSize: '11px' }}
+                  tick={{ fill: '#6b7280' }}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value} properties`, 'Count']}
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#000'
+                  }}
+                  labelStyle={{ color: '#000', fontWeight: '500' }}
+                  cursor={false}
+                />
+                <Bar 
+                  dataKey="properties" 
+                  name="Properties"
+                  radius={[0, 4, 4, 0]}
+                >
+                  {analytics.countryStats.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
+              No country data available
             </div>
           )}
         </div>

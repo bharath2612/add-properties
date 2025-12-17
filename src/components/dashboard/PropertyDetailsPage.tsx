@@ -470,7 +470,6 @@ const PropertyDetailsPage: React.FC = () => {
           return 0;
         })
     : (property.cover_url ? [{ _key: 'fallback-cover', property_id: property.id, image_url: property.cover_url, category: 'cover' }] : []);
-  const hasImages = displayImages.length > 0;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white">
@@ -1867,7 +1866,7 @@ const PropertyDetailsPage: React.FC = () => {
                       Number(f.id) === facilityIdNumber ||
                       (f.propertyFacility?.facility_id && Number(f.propertyFacility.facility_id) === facilityIdNumber)
                     );
-                    const oldImageUrl = (foundFacility?.propertyFacility?.image_url || foundFacility?.image_url || '').trim();
+                    const oldImageUrl = (foundFacility?.propertyFacility?.image_url || '').trim();
                     
                     // Validate we have both property_id and facility_id for composite key deletion
                     if (!facilityIdNumber || !propertyId) {
