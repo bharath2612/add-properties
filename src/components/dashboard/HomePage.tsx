@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -12,10 +12,275 @@ interface Analytics {
   recentProperties: any[];
   developerStats: { name: string; properties: number }[];
   countryStats: { name: string; value: number }[];
+  upcomingCompletions: { name: string; completionDate: string; daysUntil: number; id: number; slug?: string | null }[];
 }
 
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
 const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
+
+// Calendar component for upcoming completions
+const CalendarView: React.FC<{ completions: { name: string; completionDate: string; daysUntil: number; fullDate: string; id: number; slug?: string | null }[] }> = ({ completions }) => {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedCompletions, setSelectedCompletions] = useState<typeof completions>([]);
+  const navigate = useNavigate();
+  
+  const today = new Date();
+  const [displayMonth, setDisplayMonth] = useState(today.getMonth());
+  const [displayYear, setDisplayYear] = useState(today.getFullYear());
+  
+  // Navigation functions
+  const goToPreviousMonth = () => {
+    if (displayMonth === 0) {
+      setDisplayMonth(11);
+      setDisplayYear(displayYear - 1);
+    } else {
+      setDisplayMonth(displayMonth - 1);
+    }
+  };
+  
+  const goToNextMonth = () => {
+    if (displayMonth === 11) {
+      setDisplayMonth(0);
+      setDisplayYear(displayYear + 1);
+    } else {
+      setDisplayMonth(displayMonth + 1);
+    }
+  };
+  
+  // Get first day of displayed month and number of days
+  const firstDay = new Date(displayYear, displayMonth, 1);
+  const lastDay = new Date(displayYear, displayMonth + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay();
+  
+  // Group completions by date
+  const completionsByDate: Record<string, typeof completions> = {};
+  completions.forEach(completion => {
+    const date = new Date(completion.fullDate);
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (!completionsByDate[dateKey]) {
+      completionsByDate[dateKey] = [];
+    }
+    completionsByDate[dateKey].push(completion);
+  });
+  
+  // Generate calendar days
+  const days: Array<{ day: number; date: string; isToday: boolean; isPast: boolean; completions: typeof completions }> = [];
+  
+  // Add empty cells for days before month starts
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    days.push({ day: 0, date: '', isToday: false, isPast: false, completions: [] });
+  }
+  
+  // Add days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(displayYear, displayMonth, day);
+    const dateKey = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = date.toDateString() === today.toDateString();
+    const isPast = date < today && !isToday;
+    days.push({
+      day,
+      date: dateKey,
+      isToday,
+      isPast,
+      completions: completionsByDate[dateKey] || []
+    });
+  }
+  
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  return (
+    <div className="w-full">
+      <div className="mb-4 flex items-center justify-between">
+        <button
+          onClick={goToPreviousMonth}
+          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+          aria-label="Previous month"
+        >
+          <svg className="w-5 h-5 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h4 className="text-sm font-semibold text-black dark:text-white">
+          {monthNames[displayMonth]} {displayYear}
+        </h4>
+        <button
+          onClick={goToNextMonth}
+          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+          aria-label="Next month"
+        >
+          <svg className="w-5 h-5 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {/* Day headers */}
+        {dayNames.map(day => (
+          <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 py-2">
+            {day}
+          </div>
+        ))}
+        
+        {/* Calendar days */}
+        {days.map((dayData, index) => {
+          if (dayData.day === 0) {
+            return <div key={`empty-${index}`} className="aspect-square" />;
+          }
+          
+          const urgencyColor = dayData.completions.length > 0
+            ? dayData.completions[0].daysUntil < 90
+              ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700'
+              : dayData.completions[0].daysUntil < 180
+              ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700'
+              : 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+            : '';
+          
+          return (
+            <div
+              key={dayData.date}
+              className={`aspect-square border rounded-lg p-1.5 ${
+                dayData.isToday
+                  ? 'border-2 border-black dark:border-white bg-gray-100 dark:bg-zinc-800'
+                  : dayData.isPast
+                  ? 'border-gray-200 dark:border-zinc-800 opacity-50'
+                  : 'border-gray-200 dark:border-zinc-800'
+              } ${urgencyColor} overflow-y-auto`}
+            >
+              <div className={`text-xs font-medium mb-1 ${
+                dayData.isToday
+                  ? 'text-black dark:text-white'
+                  : dayData.isPast
+                  ? 'text-gray-400 dark:text-zinc-600'
+                  : 'text-gray-700 dark:text-zinc-300'
+              }`}>
+                {dayData.day}
+              </div>
+              {dayData.completions.length > 0 && (
+                <div className="space-y-0.5">
+                  {dayData.completions.slice(0, 2).map((completion, idx) => (
+                    <div
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const propertySlug = completion.slug && completion.slug.trim() !== '' 
+                          ? completion.slug 
+                          : completion.id;
+                        navigate(`/property/${propertySlug}`);
+                      }}
+                      className={`text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
+                        completion.daysUntil < 90
+                          ? 'bg-red-500 text-white'
+                          : completion.daysUntil < 180
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-blue-500 text-white'
+                      }`}
+                      title={completion.name}
+                    >
+                      {completion.name.length > 12 ? completion.name.substring(0, 12) + '...' : completion.name}
+                    </div>
+                  ))}
+                  {dayData.completions.length > 2 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDate(dayData.date);
+                        setSelectedCompletions(dayData.completions);
+                      }}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                    >
+                      +{dayData.completions.length - 2} more
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-red-500"></div>
+          <span className="text-gray-600 dark:text-zinc-400">&lt; 90 days</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-orange-500"></div>
+          <span className="text-gray-600 dark:text-zinc-400">90-180 days</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded bg-blue-500"></div>
+          <span className="text-gray-600 dark:text-zinc-400">&gt; 180 days</span>
+        </div>
+      </div>
+      
+      {/* Sidebar for showing all properties on a date */}
+      {selectedDate && selectedCompletions.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-opacity-70" onClick={() => setSelectedDate(null)}>
+          <div 
+            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg shadow-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-zinc-800">
+              <h3 className="text-sm font-semibold text-black dark:text-white">
+                Projects Completing on {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </h3>
+              <button
+                onClick={() => setSelectedDate(null)}
+                className="text-gray-500 dark:text-zinc-400 hover:text-black dark:hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-2">
+              {selectedCompletions.map((completion, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    const propertySlug = completion.slug && completion.slug.trim() !== '' 
+                      ? completion.slug 
+                      : completion.id;
+                    navigate(`/property/${propertySlug}`);
+                  }}
+                  className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                    completion.daysUntil < 90
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                      : completion.daysUntil < 180
+                      ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30'
+                      : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-black dark:text-white mb-1">
+                        {completion.name}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-zinc-400">
+                        {completion.daysUntil} {completion.daysUntil === 1 ? 'day' : 'days'} until completion
+                      </p>
+                    </div>
+                    <div className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                      completion.daysUntil < 90
+                        ? 'bg-red-500 text-white'
+                        : completion.daysUntil < 180
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-blue-500 text-white'
+                    }`}>
+                      {completion.completionDate}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const HomePage: React.FC = () => {
   const location = useLocation();
@@ -28,6 +293,7 @@ const HomePage: React.FC = () => {
     recentProperties: [],
     developerStats: [],
     countryStats: [],
+    upcomingCompletions: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +316,7 @@ const HomePage: React.FC = () => {
         recentResult,
         developerStatsResult,
         countryStatsResult,
+        upcomingCompletionsResult,
       ] = await Promise.all([
         // 1. Total count
         supabase
@@ -91,6 +358,15 @@ const HomePage: React.FC = () => {
         supabase
           .from('properties')
           .select('country'),
+
+        // 8. Upcoming completions - get properties with future completion dates
+        supabase
+          .from('properties')
+          .select('id, name, slug, completion_datetime')
+          .not('completion_datetime', 'is', null)
+          .gte('completion_datetime', new Date().toISOString())
+          .order('completion_datetime', { ascending: true })
+          .limit(500), // Increased limit to show completions across multiple months
       ]);
 
       // Calculate average price from recent properties if they have price data
@@ -139,6 +415,24 @@ const HomePage: React.FC = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 10);
 
+      // Process upcoming completions
+      const now = new Date();
+      const upcomingCompletions = (upcomingCompletionsResult.data || [])
+        .map((prop: any) => {
+          const completionDate = new Date(prop.completion_datetime);
+          const daysUntil = Math.ceil((completionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const dateStr = completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          return {
+            name: prop.name || 'Unknown',
+            completionDate: dateStr,
+            daysUntil,
+            fullDate: completionDate.toISOString(),
+            id: prop.id,
+            slug: prop.slug || null,
+          };
+        })
+        .sort((a, b) => a.daysUntil - b.daysUntil);
+
       // Map recent properties with developer names
       const recentProperties = (recentResult.data || []).map((prop: any) => ({
         ...prop,
@@ -154,6 +448,7 @@ const HomePage: React.FC = () => {
         recentProperties,
         developerStats,
         countryStats,
+        upcomingCompletions,
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -353,10 +648,10 @@ const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Properties */}
+      {/* Upcoming Completions Calendar */}
       <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-black dark:text-white">Recent Properties</h3>
+          <h3 className="text-sm font-medium text-black dark:text-white">Upcoming Project Completions</h3>
           <Link
             to="/properties"
             className="text-xs text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
@@ -364,43 +659,13 @@ const HomePage: React.FC = () => {
             View All →
           </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-zinc-900">
-                <th className="text-left py-3 px-3 text-xs font-medium text-gray-500 dark:text-zinc-500">Property</th>
-                <th className="text-left py-3 px-3 text-xs font-medium text-gray-500 dark:text-zinc-500">Location</th>
-                <th className="text-left py-3 px-3 text-xs font-medium text-gray-500 dark:text-zinc-500">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytics.recentProperties.length > 0 ? (
-                analytics.recentProperties.map((property) => (
-                  <tr key={property.id} className="border-b border-gray-200 dark:border-zinc-900 hover:bg-gray-100 dark:hover:bg-zinc-900/50">
-                    <td className="py-3 px-3">
-                      <div>
-                        <p className="text-sm text-black dark:text-white">{property.name || 'N/A'}</p>
-                        <p className="text-xs text-gray-500 dark:text-zinc-500">{property.developer_name || 'N/A'}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-sm text-gray-600 dark:text-zinc-400">{property.area || 'N/A'}</td>
-                    <td className="py-3 px-3">
-                      <span className="inline-flex px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-zinc-800 text-gray-600 dark:text-zinc-400">
-                        {property.status || 'N/A'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="py-8 text-center text-gray-500 dark:text-zinc-500 text-sm">
-                    No properties found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        {analytics.upcomingCompletions.length > 0 ? (
+          <CalendarView completions={analytics.upcomingCompletions} />
+        ) : (
+          <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
+            No upcoming completions found
+          </div>
+        )}
       </div>
     </div>
   );
