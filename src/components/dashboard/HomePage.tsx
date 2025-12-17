@@ -18,6 +18,77 @@ interface Analytics {
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
 const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
 
+// Country to flag emoji mapping
+const COUNTRY_FLAGS: Record<string, string> = {
+  'United Arab Emirates': '🇦🇪',
+  'UAE': '🇦🇪',
+  'Indonesia': '🇮🇩',
+  'Thailand': '🇹🇭',
+  'India': '🇮🇳',
+  'Unknown': '🏳️',
+};
+
+// Get flag for a country name
+const getCountryFlag = (countryName: string): string => {
+  return COUNTRY_FLAGS[countryName] || '🏳️';
+};
+
+// Custom label component for country bars - shows flag on top
+const CountryBarLabel = (props: any) => {
+  const { x, y, width, payload } = props;
+  if (!width || !payload || !payload.name) {
+    return <g />;
+  }
+  
+  const countryName = payload.name || '';
+  const flag = getCountryFlag(countryName);
+  
+  // Position label above the bar
+  return (
+    <g>
+      <text
+        x={x + (width / 2)}
+        y={y - 15}
+        fill="#6b7280"
+        fontSize={20}
+        textAnchor="middle"
+        dominantBaseline="hanging"
+      >
+        {flag}
+      </text>
+    </g>
+  );
+};
+
+// Custom label component for developer bars - shows name on top
+const DeveloperBarLabel = (props: any) => {
+  const { x, y, width, payload } = props;
+  if (!width || !payload || !payload.name) {
+    return <g />;
+  }
+  
+  const name = payload.name || '';
+  // Truncate name if too long
+  const displayName = name.length > 18 ? name.substring(0, 15) + '...' : name;
+  
+  // Position label above the bar
+  return (
+    <g>
+      <text
+        x={x + (width / 2)}
+        y={y - 15}
+        fill="#6b7280"
+        fontSize={10}
+        fontWeight="500"
+        textAnchor="middle"
+        dominantBaseline="hanging"
+      >
+        {displayName}
+      </text>
+    </g>
+  );
+};
+
 // Calendar component for upcoming completions
 const CalendarView: React.FC<{ completions: { name: string; completionDate: string; daysUntil: number; fullDate: string; id: number; slug?: string | null }[] }> = ({ completions }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -91,126 +162,128 @@ const CalendarView: React.FC<{ completions: { name: string; completionDate: stri
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
   return (
-    <div className="w-full">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="w-full flex flex-col">
+      <div className="sticky top-0 bg-gray-50 dark:bg-zinc-950 z-10 pb-2 mb-2 flex items-center justify-between border-b border-gray-200 dark:border-zinc-800">
         <button
           onClick={goToPreviousMonth}
-          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
           aria-label="Previous month"
         >
-          <svg className="w-5 h-5 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h4 className="text-sm font-semibold text-black dark:text-white">
+        <h4 className="text-xs font-semibold text-black dark:text-white">
           {monthNames[displayMonth]} {displayYear}
         </h4>
         <button
           onClick={goToNextMonth}
-          className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+          className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
           aria-label="Next month"
         >
-          <svg className="w-5 h-5 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-gray-600 dark:text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {/* Day headers */}
-        {dayNames.map(day => (
-          <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 py-2">
-            {day}
-          </div>
-        ))}
-        
-        {/* Calendar days */}
-        {days.map((dayData, index) => {
-          if (dayData.day === 0) {
-            return <div key={`empty-${index}`} className="aspect-square" />;
-          }
-          
-          const urgencyColor = dayData.completions.length > 0
-            ? dayData.completions[0].daysUntil < 90
-              ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700'
-              : dayData.completions[0].daysUntil < 180
-              ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700'
-              : 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
-            : '';
-          
-          return (
-            <div
-              key={dayData.date}
-              className={`aspect-square border rounded-lg p-1.5 ${
-                dayData.isToday
-                  ? 'border-2 border-black dark:border-white bg-gray-100 dark:bg-zinc-800'
-                  : dayData.isPast
-                  ? 'border-gray-200 dark:border-zinc-800 opacity-50'
-                  : 'border-gray-200 dark:border-zinc-800'
-              } ${urgencyColor} overflow-y-auto`}
-            >
-              <div className={`text-xs font-medium mb-1 ${
-                dayData.isToday
-                  ? 'text-black dark:text-white'
-                  : dayData.isPast
-                  ? 'text-gray-400 dark:text-zinc-600'
-                  : 'text-gray-700 dark:text-zinc-300'
-              }`}>
-                {dayData.day}
-              </div>
-              {dayData.completions.length > 0 && (
-                <div className="space-y-0.5">
-                  {dayData.completions.slice(0, 2).map((completion, idx) => (
-                    <div
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const propertySlug = completion.slug && completion.slug.trim() !== '' 
-                          ? completion.slug 
-                          : completion.id;
-                        navigate(`/property/${propertySlug}`);
-                      }}
-                      className={`text-[10px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
-                        completion.daysUntil < 90
-                          ? 'bg-red-500 text-white'
-                          : completion.daysUntil < 180
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-blue-500 text-white'
-                      }`}
-                      title={completion.name}
-                    >
-                      {completion.name.length > 12 ? completion.name.substring(0, 12) + '...' : completion.name}
-                    </div>
-                  ))}
-                  {dayData.completions.length > 2 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedDate(dayData.date);
-                        setSelectedCompletions(dayData.completions);
-                      }}
-                      className="text-[10px] text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
-                    >
-                      +{dayData.completions.length - 2} more
-                    </button>
-                  )}
-                </div>
-              )}
+      <div className="overflow-y-auto flex-1">
+        <div className="grid grid-cols-7 gap-0.5">
+          {/* Day headers */}
+          {dayNames.map(day => (
+            <div key={day} className="text-center text-[10px] font-medium text-gray-500 dark:text-zinc-500 py-1">
+              {day}
             </div>
-          );
-        })}
+          ))}
+          
+          {/* Calendar days */}
+          {days.map((dayData, index) => {
+            if (dayData.day === 0) {
+              return <div key={`empty-${index}`} className="aspect-square" />;
+            }
+            
+            const urgencyColor = dayData.completions.length > 0
+              ? dayData.completions[0].daysUntil < 90
+                ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700'
+                : dayData.completions[0].daysUntil < 180
+                ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700'
+                : 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+              : '';
+            
+            return (
+              <div
+                key={dayData.date}
+                className={`aspect-square border rounded p-1 ${
+                  dayData.isToday
+                    ? 'border-2 border-black dark:border-white bg-gray-100 dark:bg-zinc-800'
+                    : dayData.isPast
+                    ? 'border-gray-200 dark:border-zinc-800 opacity-50'
+                    : 'border-gray-200 dark:border-zinc-800'
+                } ${urgencyColor} overflow-y-auto`}
+              >
+                <div className={`text-[10px] font-medium mb-0.5 ${
+                  dayData.isToday
+                    ? 'text-black dark:text-white'
+                    : dayData.isPast
+                    ? 'text-gray-400 dark:text-zinc-600'
+                    : 'text-gray-700 dark:text-zinc-300'
+                }`}>
+                  {dayData.day}
+                </div>
+                {dayData.completions.length > 0 && (
+                  <div className="space-y-0.5">
+                    {dayData.completions.slice(0, 2).map((completion, idx) => (
+                      <div
+                        key={idx}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const propertySlug = completion.slug && completion.slug.trim() !== '' 
+                            ? completion.slug 
+                            : completion.id;
+                          navigate(`/property/${propertySlug}`);
+                        }}
+                        className={`text-[9px] px-0.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity ${
+                          completion.daysUntil < 90
+                            ? 'bg-red-500 text-white'
+                            : completion.daysUntil < 180
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-blue-500 text-white'
+                        }`}
+                        title={completion.name}
+                      >
+                        {completion.name.length > 10 ? completion.name.substring(0, 10) + '...' : completion.name}
+                      </div>
+                    ))}
+                    {dayData.completions.length > 2 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDate(dayData.date);
+                          setSelectedCompletions(dayData.completions);
+                        }}
+                        className="text-[9px] text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                      >
+                        +{dayData.completions.length - 2} more
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-red-500"></div>
+      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-zinc-800 flex flex-wrap items-center gap-3 text-[10px]">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded bg-red-500"></div>
           <span className="text-gray-600 dark:text-zinc-400">&lt; 90 days</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-orange-500"></div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded bg-orange-500"></div>
           <span className="text-gray-600 dark:text-zinc-400">90-180 days</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-blue-500"></div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded bg-blue-500"></div>
           <span className="text-gray-600 dark:text-zinc-400">&gt; 180 days</span>
         </div>
       </div>
@@ -314,8 +387,6 @@ const HomePage: React.FC = () => {
         completedResult,
         onSaleResult,
         recentResult,
-        developerStatsResult,
-        countryStatsResult,
         upcomingCompletionsResult,
       ] = await Promise.all([
         // 1. Total count - using id to ensure accurate count
@@ -349,20 +420,7 @@ const HomePage: React.FC = () => {
           .order('created_at', { ascending: false })
           .limit(5),
 
-        // 6. Developer stats - get property counts grouped by developer
-        supabase
-          .from('properties')
-          .select('developer_id, partner_developers(name)')
-          .not('developer_id', 'is', null),
-
-        // 7. Country stats - get all properties with country field for accurate counting
-        // Note: Supabase has a default limit of 1000 rows, so we explicitly set a high limit
-        supabase
-          .from('properties')
-          .select('id, country')
-          .limit(10000), // Set a high limit to get all properties (should cover 1783+ properties)
-
-        // 8. Upcoming completions - get properties with future completion dates
+        // 6. Upcoming completions - get properties with future completion dates
         supabase
           .from('properties')
           .select('id, name, slug, completion_datetime')
@@ -382,27 +440,7 @@ const HomePage: React.FC = () => {
         }
       }
 
-      // Process developer stats - count properties per developer
-      const developerCounts: Record<string, number> = {};
-      if (developerStatsResult.data) {
-        developerStatsResult.data.forEach((prop: any) => {
-          const devName = prop.partner_developers?.name || 'Unknown';
-          developerCounts[devName] = (developerCounts[devName] || 0) + 1;
-        });
-      }
 
-      // Get top 5 developers
-      const developerStats = Object.entries(developerCounts)
-        .map(([name, count]) => ({
-          name: name.length > 30 ? name.substring(0, 30) + '...' : name,
-          properties: count,
-        }))
-        .sort((a, b) => b.properties - a.properties)
-        .slice(0, 5);
-
-      // Process country stats - count properties per country with normalization
-      const countryCounts: Record<string, number> = {};
-      
       // Helper function to normalize country names
       const normalizeCountryName = (country: string | null | undefined): string => {
         if (!country || typeof country !== 'string') return 'Unknown';
@@ -429,17 +467,61 @@ const HomePage: React.FC = () => {
           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
           .join(' ');
       };
+
+      // Process upcoming completions
+      const now = new Date();
+      const upcomingCompletions = (upcomingCompletionsResult.data || [])
+        .map((prop: any) => {
+          const completionDate = new Date(prop.completion_datetime);
+          const daysUntil = Math.ceil((completionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const dateStr = completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          return {
+            name: prop.name || 'Unknown',
+            completionDate: dateStr,
+            daysUntil,
+            fullDate: completionDate.toISOString(),
+            id: prop.id,
+            slug: prop.slug || null,
+          };
+        })
+        .sort((a, b) => a.daysUntil - b.daysUntil);
+
+      // Map recent properties with developer names
+      const recentProperties = (recentResult.data || []).map((prop: any) => ({
+        ...prop,
+        developer_name: prop.partner_developers?.name || 'Unknown',
+      }));
+
+      // Log count for debugging
+      if (totalResult.error) {
+        console.error('❌ Error fetching total count:', totalResult.error);
+      }
       
-      if (countryStatsResult.data) {
-        countryStatsResult.data.forEach((prop: any) => {
-          const normalizedCountry = normalizeCountryName(prop.country);
-          countryCounts[normalizedCountry] = (countryCounts[normalizedCountry] || 0) + 1;
-        });
+      // Get the total count
+      let totalCount = totalResult.count ?? 0;
+      
+      // Process country stats - fetch all properties in pages to avoid Supabase row limits
+      const countryCounts: Record<string, number> = {};
+      
+      // Fetch countries in pages of 1000
+      for (let from = 0; from < totalCount; from += 1000) {
+        const to = Math.min(from + 999, totalCount - 1);
+        const countryPageResult = await supabase
+          .from('properties')
+          .select('country')
+          .range(from, to);
+        
+        if (countryPageResult.data) {
+          countryPageResult.data.forEach((prop: any) => {
+            const normalizedCountry = normalizeCountryName(prop.country);
+            countryCounts[normalizedCountry] = (countryCounts[normalizedCountry] || 0) + 1;
+          });
+        }
       }
       
       // Log country stats for debugging
-      const totalProcessed = countryStatsResult.data?.length || 0;
-      const sumOfCountryCounts = Object.values(countryCounts).reduce((sum, count) => sum + count, 0);
+      const totalProcessed = Object.values(countryCounts).reduce((sum, count) => sum + count, 0);
+      const sumOfCountryCounts = totalProcessed;
       
       console.log('🌍 Country Stats:');
       console.log(`  Total properties processed: ${totalProcessed}`);
@@ -477,42 +559,39 @@ const HomePage: React.FC = () => {
           return true;
         })
         .sort((a, b) => b.value - a.value)
-        .slice(0, 5); // Changed from 10 to 5
+        .slice(0, 5);
       
       // Log top countries
       console.log('  Top countries:', countryStats.slice(0, 5).map(c => `${c.name}: ${c.value}`).join(', '));
-
-      // Process upcoming completions
-      const now = new Date();
-      const upcomingCompletions = (upcomingCompletionsResult.data || [])
-        .map((prop: any) => {
-          const completionDate = new Date(prop.completion_datetime);
-          const daysUntil = Math.ceil((completionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          const dateStr = completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          return {
-            name: prop.name || 'Unknown',
-            completionDate: dateStr,
-            daysUntil,
-            fullDate: completionDate.toISOString(),
-            id: prop.id,
-            slug: prop.slug || null,
-          };
-        })
-        .sort((a, b) => a.daysUntil - b.daysUntil);
-
-      // Map recent properties with developer names
-      const recentProperties = (recentResult.data || []).map((prop: any) => ({
-        ...prop,
-        developer_name: prop.partner_developers?.name || 'Unknown',
-      }));
-
-      // Log count for debugging
-      if (totalResult.error) {
-        console.error('❌ Error fetching total count:', totalResult.error);
+      
+      // Process developer stats - fetch all properties with developers in pages to avoid Supabase row limits
+      const developerCounts: Record<string, number> = {};
+      
+      // Fetch developers in pages of 1000
+      for (let from = 0; from < totalCount; from += 1000) {
+        const to = Math.min(from + 999, totalCount - 1);
+        const developerPageResult = await supabase
+          .from('properties')
+          .select('developer_id, partner_developers(name)')
+          .not('developer_id', 'is', null)
+          .range(from, to);
+        
+        if (developerPageResult.data) {
+          developerPageResult.data.forEach((prop: any) => {
+            const devName = prop.partner_developers?.name || 'Unknown';
+            developerCounts[devName] = (developerCounts[devName] || 0) + 1;
+          });
+        }
       }
       
-      // Get the total count
-      let totalCount = totalResult.count ?? 0;
+      // Get top 5 developers
+      const developerStats = Object.entries(developerCounts)
+        .map(([name, count]) => ({
+          name: name.length > 30 ? name.substring(0, 30) + '...' : name,
+          properties: count,
+        }))
+        .sort((a, b) => b.properties - a.properties)
+        .slice(0, 5);
       
       // Verify count by checking UAE properties specifically
       // This helps identify if RLS is filtering properties
@@ -681,149 +760,158 @@ USING (true);
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
         {/* Status Distribution */}
-        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4 flex flex-col">
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Status Distribution</h3>
-          {statusData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={70}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {statusData.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#18181b', 
-                    border: '1px solid #27272a',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    color: '#fff',
-                  }}
-                  labelStyle={{ color: '#fff' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
-              No data available
-            </div>
-          )}
+          <div className="h-[280px] lg:h-[320px] w-full">
+            {statusData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={70}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {statusData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#18181b', 
+                      border: '1px solid #27272a',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#fff',
+                    }}
+                    labelStyle={{ color: '#fff' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
+                No data available
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Country Distribution */}
-        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4 flex flex-col">
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 5 Countries by Properties</h3>
-          {analytics.countryStats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart 
-                data={analytics.countryStats.map(c => ({ name: c.name, properties: c.value }))} 
-                layout="vertical" 
-                margin={{ left: 10, right: 10 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
-                <XAxis 
-                  type="number"
-                  stroke="#6b7280"
-                  style={{ fontSize: '11px' }}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name"
-                  width={100}
-                  stroke="#6b7280"
-                  style={{ fontSize: '11px' }}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <Tooltip 
-                  formatter={(value: number) => [`${value} properties`, 'Count']}
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    color: '#000'
-                  }}
-                  labelStyle={{ color: '#000', fontWeight: '500' }}
-                  cursor={false}
-                />
-                <Bar 
-                  dataKey="properties" 
-                  name="Properties"
-                  radius={[0, 4, 4, 0]}
+          <div className="h-[280px] lg:h-[320px] w-full">
+            {analytics.countryStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={analytics.countryStats.map(c => ({ name: c.name, properties: c.value }))} 
+                  margin={{ top: 50, right: 10, bottom: 5, left: 5 }}
                 >
-                  {analytics.countryStats.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
-              No country data available
-            </div>
-          )}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
+                  <XAxis 
+                    type="category"
+                    dataKey="name"
+                    hide={true}
+                  />
+                  <YAxis 
+                    type="number"
+                    stroke="#6b7280"
+                    style={{ fontSize: '11px' }}
+                    tick={{ fill: '#6b7280' }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value} properties`,
+                      props.payload.name
+                    ]}
+                    labelFormatter={(label) => ''}
+                    contentStyle={{ 
+                      backgroundColor: '#ffffff', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#000'
+                    }}
+                    labelStyle={{ color: '#000', fontWeight: '500' }}
+                    cursor={false}
+                  />
+                  <Bar 
+                    dataKey="properties" 
+                    name="Properties"
+                    radius={[4, 4, 0, 0]}
+                    label={CountryBarLabel}
+                  >
+                    {analytics.countryStats.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
+                No country data available
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Developers Chart */}
-        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4 flex flex-col">
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Top 5 Developers by Properties</h3>
-          {analytics.developerStats.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={analytics.developerStats} layout="vertical" margin={{ left: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
-                <XAxis 
-                  type="number"
-                  stroke="#6b7280"
-                  style={{ fontSize: '11px' }}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name"
-                  width={140}
-                  stroke="#6b7280"
-                  style={{ fontSize: '11px' }}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <Tooltip 
-                  formatter={(value: number) => [`${value} properties`, 'Count']}
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    color: '#000'
-                  }}
-                  labelStyle={{ color: '#000', fontWeight: '500' }}
-                  cursor={false}
-                />
-                <Bar 
-                  dataKey="properties" 
-                  name="Properties"
-                  radius={[0, 4, 4, 0]}
-                >
-                  {analytics.developerStats.map((_entry, index) => (
-                    <Cell key={`cell-${index}`} fill={BAR_COLORS[index]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
-              No developer data available
-            </div>
-          )}
+          <div className="h-[280px] lg:h-[320px] w-full">
+            {analytics.developerStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics.developerStats} margin={{ top: 50, right: 10, bottom: 5, left: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
+                  <XAxis 
+                    type="category"
+                    dataKey="name"
+                    hide={true}
+                  />
+                  <YAxis 
+                    type="number"
+                    stroke="#6b7280"
+                    style={{ fontSize: '11px' }}
+                    tick={{ fill: '#6b7280' }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value} properties`,
+                      props.payload.name
+                    ]}
+                    labelFormatter={(label) => ''}
+                    contentStyle={{ 
+                      backgroundColor: '#ffffff', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#000'
+                    }}
+                    labelStyle={{ color: '#000', fontWeight: '500' }}
+                    cursor={false}
+                  />
+                  <Bar 
+                    dataKey="properties" 
+                    name="Properties"
+                    radius={[4, 4, 0, 0]}
+                    label={DeveloperBarLabel}
+                  >
+                    {analytics.developerStats.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={BAR_COLORS[index]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
+                No developer data available
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -839,7 +927,9 @@ USING (true);
           </Link>
         </div>
         {analytics.upcomingCompletions.length > 0 ? (
-          <CalendarView completions={analytics.upcomingCompletions} />
+          <div className="max-h-[520px] overflow-y-auto">
+            <CalendarView completions={analytics.upcomingCompletions} />
+          </div>
         ) : (
           <div className="flex items-center justify-center h-60 text-gray-500 dark:text-zinc-500 text-sm">
             No upcoming completions found
