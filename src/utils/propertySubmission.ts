@@ -129,13 +129,9 @@ export const submitProperty = async (
         completion_datetime: formData.completion_datetime || null,
         readiness: formData.readiness,
         permit_id: formData.permit_id || null,
-        // Convert property-level prices to AED if needed
-        min_price_aed: formData.price_currency === 'AED' 
-          ? formData.min_price 
-          : (formData.min_price ? convertToAED(formData.min_price, formData.price_currency) : null),
-        max_price_aed: formData.price_currency === 'AED'
-          ? formData.max_price
-          : (formData.max_price ? convertToAED(formData.max_price, formData.price_currency) : null),
+        // Save prices as face value with the provided currency
+        min_price: formData.min_price,
+        max_price: formData.max_price,
         price_currency: formData.price_currency,
         service_charge: formData.service_charge || null,
         min_area: formData.min_area,

@@ -76,10 +76,9 @@ export function buildPropertyPayload(form: PropertyFormData): FrontendPropertyPa
     readiness: form.readiness || null,
     sale_status: form.sale_status || null,
     completion_datetime: form.completion_datetime || null,
-    // Property-level prices: use min_price_aed/max_price_aed if provided, otherwise keep as is
-    // (The adapter should have already converted them from min_price/max_price based on currency)
-    min_price_aed: form.min_price_aed || null,
-    max_price_aed: form.max_price_aed || null,
+    // Property-level prices: store face value with currency
+    min_price: form.min_price ?? form.min_price_aed ?? null,
+    max_price: form.max_price ?? form.max_price_aed ?? null,
     price_currency: form.price_currency || null,
     min_area: form.min_area || null,
     max_area: form.max_area || null,
