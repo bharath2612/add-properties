@@ -79,6 +79,8 @@ export interface PropertyFormData {
   readiness?: number | null;
   sale_status?: string | null;
   completion_datetime?: string | null;
+  min_price?: number | null;
+  max_price?: number | null;
   min_price_aed?: number | null;
   max_price_aed?: number | null;
   price_currency?: string | null;

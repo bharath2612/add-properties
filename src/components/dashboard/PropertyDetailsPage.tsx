@@ -5,7 +5,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase as baseClient } from '../../lib/supabaseAuth';
 import { PropertyDetails } from '../../types/database.types';
 import FileUpload from '../property-entry/FileUpload';
-import { uploadToR2, deleteFromR2, FileCategory } from '../../utils/r2Upload';
+import { deleteFromR2 } from '../../utils/r2Upload';
 
 const PropertyDetailsPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -345,10 +345,9 @@ const PropertyDetailsPage: React.FC = () => {
     sectionId: string;
     onEdit: () => void;
     onSave: () => Promise<void>;
-    hasChanges?: boolean;
     onAddItem?: () => void;
     addLabel?: string;
-  }> = ({ title, sectionId, onEdit, onSave, hasChanges = false, onAddItem, addLabel }) => {
+  }> = ({ title, sectionId, onEdit, onSave, onAddItem, addLabel }) => {
     const isEditing = editingSections.has(sectionId);
     const isSaving = saving === sectionId;
 
@@ -1828,7 +1827,8 @@ const PropertyDetailsPage: React.FC = () => {
                   const facility = facilities.find((f: any) => f.id === facilityUpdate.facilityId);
                   if (!facility || !facility.propertyFacility?.id) continue;
                   
-                  const oldImageUrl = (facility.propertyFacility?.image_url || facility.image_url || '').trim();
+                  const facilityAny = facility as any;
+                  const oldImageUrl = (facilityAny.propertyFacility?.image_url || facilityAny.image_url || '').trim();
                   const newImageUrl = (facilityUpdate.image_url || '').trim();
                   
                   if (oldImageUrl !== newImageUrl) {
