@@ -12,7 +12,7 @@ interface Analytics {
   recentProperties: any[];
   developerStats: { name: string; properties: number }[];
   countryStats: { name: string; value: number }[];
-  upcomingCompletions: { name: string; completionDate: string; daysUntil: number; id: number; slug?: string | null }[];
+  upcomingCompletions: { name: string; completionDate: string; daysUntil: number; fullDate: string; id: number; slug?: string | null }[];
 }
 
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a'];
@@ -824,11 +824,11 @@ USING (true);
                     tick={{ fill: '#6b7280' }}
                   />
                   <Tooltip 
-                    formatter={(value: number, name: string, props: any) => [
+                    formatter={(value: number, _name: string, props: any) => [
                       `${value} properties`,
                       props.payload.name
                     ]}
-                    labelFormatter={(label) => ''}
+                    labelFormatter={() => ''}
                     contentStyle={{ 
                       backgroundColor: '#ffffff', 
                       border: '1px solid #e5e7eb',
@@ -879,11 +879,11 @@ USING (true);
                     tick={{ fill: '#6b7280' }}
                   />
                   <Tooltip 
-                    formatter={(value: number, name: string, props: any) => [
+                    formatter={(value: number, _name: string, props: any) => [
                       `${value} properties`,
                       props.payload.name
                     ]}
-                    labelFormatter={(label) => ''}
+                    labelFormatter={() => ''}
                     contentStyle={{ 
                       backgroundColor: '#ffffff', 
                       border: '1px solid #e5e7eb',
