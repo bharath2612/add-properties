@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" fill="#000000"/>
+  <!-- Main structure - simplified house/building shape with negative space -->
+  <!-- Left vertical pillar -->
+  <path d="M 15 15 L 15 85 L 25 85 L 25 25 L 15 15 Z" fill="#FFFFFF"/>
+  <!-- Right mass with sloped roof -->
+  <path d="M 25 25 L 25 85 L 90 85 L 90 45 L 75 15 L 25 25 Z" fill="#FFFFFF"/>
+  <!-- Negative space - interior cutout (P-like shape) -->
+  <path d="M 30 20 L 70 13 L 85 42 L 85 80 L 30 80 Z" fill="#000000"/>
+  <!-- L-shaped cutout bottom-right -->
+  <path d="M 80 75 L 80 85 L 85 85 L 85 75 Z" fill="#000000"/>
+  <!-- 3D bevel effect - inner edges with subtle shading -->
+  <path d="M 25 25 L 75 15" stroke="#CCCCCC" stroke-width="0.5" opacity="0.4"/>
+  <path d="M 75 15 L 90 45" stroke="#CCCCCC" stroke-width="0.5" opacity="0.4"/>
+  <path d="M 25 25 L 25 85" stroke="#CCCCCC" stroke-width="0.5" opacity="0.4"/>
+</svg>
+
