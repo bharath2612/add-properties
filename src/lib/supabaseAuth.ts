@@ -29,3 +29,5 @@ export const authenticatedSupabase = new Proxy(baseClient, {
 // Components should use authenticatedSupabase instead
 export { baseClient as supabase };
 
+
+

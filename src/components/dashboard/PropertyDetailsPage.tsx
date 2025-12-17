@@ -18,6 +18,8 @@ const PropertyDetailsPage: React.FC = () => {
   const [editValues, setEditValues] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [facilitySearchTerm, setFacilitySearchTerm] = useState<string>('');
+  const [facilitySearchResults, setFacilitySearchResults] = useState<any[]>([]);
 
   useEffect(() => {
     if (slug) {
@@ -147,17 +149,26 @@ const PropertyDetailsPage: React.FC = () => {
       });
 
       // Transform facilities data
-      const facilitiesData = (propertyFacilities || []).map((pf: any) => ({
-        ...pf.facilities,
-        propertyFacility: {
-          id: pf.id,
-          property_id: pf.property_id,
-          facility_id: pf.facility_id,
-          image_url: pf.image_url,
-          image_source: pf.image_source,
-          created_at: pf.created_at,
-        },
-      }));
+      // Note: property_facilities table uses composite primary key (property_id, facility_id), not an id column
+      const facilitiesData = (propertyFacilities || [])
+        .filter((pf: any) => {
+          if (!pf || !pf.property_id || !pf.facility_id) {
+            console.warn('Skipping property_facility record with missing property_id or facility_id:', pf);
+            return false;
+          }
+          return true;
+        })
+        .map((pf: any) => ({
+          ...pf.facilities,
+          propertyFacility: {
+            // Use composite key identifier (property_id, facility_id) since there's no id column
+            compositeKey: `${pf.property_id}_${pf.facility_id}`,
+            property_id: pf.property_id,
+            facility_id: pf.facility_id,
+            image_url: pf.image_url,
+            image_source: pf.image_source,
+          },
+        }));
 
       setDetails({
         property,
@@ -1807,72 +1818,469 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Facilities & Amenities */}
-        {facilities.length > 0 && (
+        {(facilities.length > 0 || editingSections.has('facilities') || true) && (
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Facilities & Amenities"
               sectionId="facilities"
               onEdit={() => toggleEdit('facilities', {
                 facilities: facilities.map((facility: any) => ({
-                  propertyFacilityId: facility.propertyFacility?.id,
+                  propertyFacilityCompositeKey: facility.propertyFacility?.compositeKey,
+                  propertyId: facility.propertyFacility?.property_id,
                   facilityId: facility.id,
+                  name: facility.name,
                   image_url: facility.propertyFacility?.image_url || facility.image_url || '',
                 })),
               })}
+              onAddItem={() => {
+                // Just enable editing mode - don't create empty facility card
+                // User will search and select facilities, which will add them
+                setEditingSections(prev => new Set(prev).add('facilities'));
+                // Initialize edit values with existing facilities if not already set
+                if (!editValues['facilities']) {
+                  const current = facilities.map((facility: any) => ({
+                    propertyFacilityCompositeKey: facility.propertyFacility?.compositeKey,
+                    propertyId: facility.propertyFacility?.property_id,
+                    facilityId: facility.id,
+                    name: facility.name,
+                    image_url: facility.propertyFacility?.image_url || facility.image_url || '',
+                  }));
+                  updateEditValue('facilities', 'facilities', current);
+                }
+              }}
+              addLabel="Add Facility"
               onSave={async () => {
                 const values = editValues['facilities'] || {};
                 const facilityUpdates = values.facilities || [];
+                const errors: string[] = [];
                 
                 for (const facilityUpdate of facilityUpdates) {
-                  const facility = facilities.find((f: any) => f.id === facilityUpdate.facilityId);
-                  if (!facility || !facility.propertyFacility?.id) continue;
+                  // Get facility_id - must be a valid number
+                  const facilityIdStr = String(facilityUpdate.facilityId || '').trim();
+                  let facilityIdNumber: number | null = null;
+                  
+                  if (facilityIdStr && facilityIdStr !== '' && facilityIdStr !== 'null' && facilityIdStr !== 'undefined') {
+                    const parsed = Number(facilityIdStr);
+                    if (!isNaN(parsed) && parsed > 0) {
+                      facilityIdNumber = parsed;
+                    }
+                  }
+                  
+                  const newImageUrl = (facilityUpdate.image_url || '').trim();
+                  const propertyId = facilityUpdate.propertyId || property.id;
+
+                  // Delete facility link if flagged
+                  if (facilityUpdate._remove) {
+                    // If this is a new facility that hasn't been saved yet, just skip it
+                    // (no need to delete from database since it was never inserted)
+                    if (facilityUpdate._isNew) {
+                      console.log('Skipping removal of new facility (not yet saved to database):', facilityUpdate.name || facilityUpdate.facilityId);
+                      continue;
+                    }
+
+                    // Find the facility to get the image URL for deletion
+                    const foundFacility = facilities.find((f: any) => 
+                      Number(f.id) === facilityIdNumber ||
+                      (f.propertyFacility?.facility_id && Number(f.propertyFacility.facility_id) === facilityIdNumber)
+                    );
+                    const oldImageUrl = (foundFacility?.propertyFacility?.image_url || foundFacility?.image_url || '').trim();
+                    
+                    // Validate we have both property_id and facility_id for composite key deletion
+                    if (!facilityIdNumber || !propertyId) {
+                      const facilityName = foundFacility?.name || facilityUpdate.name || 'Unknown facility';
+                      errors.push(`Cannot delete facility "${facilityName}": Missing property_id or facility_id.`);
+                      console.error('Missing composite key for deletion:', {
+                        facilityIdNumber,
+                        propertyId,
+                        facilityUpdate
+                      });
+                      continue;
+                    }
+
+                    try {
+                      // Delete image from R2 if it exists
+                      if (oldImageUrl && oldImageUrl.startsWith('http')) {
+                        try {
+                          const deleteResult = await deleteFromR2(oldImageUrl);
+                          if (!deleteResult.success) {
+                            console.warn(`Failed to delete facility image from R2: ${deleteResult.error}`);
+                          }
+                        } catch (err) {
+                          console.error('Error deleting facility image from R2:', err);
+                          // Don't fail the whole operation if R2 delete fails
+                        }
+                      }
+
+                      // Delete from property_facilities table using composite key (property_id, facility_id)
+                      const { error: deleteError } = await baseClient
+                        .from('property_facilities')
+                        .delete()
+                        .eq('property_id', propertyId)
+                        .eq('facility_id', facilityIdNumber);
+
+                      if (deleteError) {
+                        const facilityName = foundFacility?.name || facilityUpdate.name || 'Unknown facility';
+                        errors.push(`Failed to delete facility "${facilityName}": ${deleteError.message}`);
+                        console.error('Error deleting facility from property_facilities:', {
+                          deleteError,
+                          propertyId,
+                          facilityId: facilityIdNumber,
+                          facilityUpdate
+                        });
+                        throw new Error(`Failed to delete facility: ${deleteError.message}`);
+                      }
+
+                      console.log(`Successfully deleted facility "${foundFacility?.name || 'Unknown'}" with property_id=${propertyId}, facility_id=${facilityIdNumber}`);
+                    } catch (err: any) {
+                      const facilityName = foundFacility?.name || facilityUpdate.name || 'Unknown facility';
+                      errors.push(`Error deleting facility "${facilityName}": ${err.message || 'Unknown error'}`);
+                      console.error('Exception during facility deletion:', err);
+                      // Continue processing other facilities instead of failing completely
+                    }
+                    continue; // skip further processing for removed items
+                  }
+
+                  if (facilityUpdate._isNew) {
+                    // Validate facility_id - check for empty string, null, undefined, or invalid number
+                    if (!facilityIdNumber) {
+                      errors.push(`Cannot add facility: Invalid facility_id (empty or missing). Please select a valid facility from the search results.`);
+                      console.error('Invalid facility_id for new facility (empty/missing):', facilityUpdate);
+                      continue;
+                    }
+
+                    // Check if this facility is already linked to this property
+                    try {
+                      const { data: existingLink, error: checkError } = await baseClient
+                        .from('property_facilities')
+                        .select('image_url')
+                        .eq('property_id', propertyId)
+                        .eq('facility_id', facilityIdNumber)
+                        .maybeSingle();
+
+                      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found" which is OK
+                        errors.push(`Error checking for existing facility link: ${checkError.message}`);
+                        console.error('Error checking for existing facility link:', checkError);
+                        continue;
+                      }
+
+                      if (existingLink) {
+                        // Facility already exists - update it instead of inserting
+                        console.log(`Facility (ID: ${facilityIdNumber}) already linked to property. Updating image_url instead.`);
+                        const { error: updateError } = await baseClient
+                          .from('property_facilities')
+                          .update({
+                            image_url: newImageUrl || null,
+                          })
+                          .eq('property_id', propertyId)
+                          .eq('facility_id', facilityIdNumber);
+
+                        if (updateError) {
+                          errors.push(`Failed to update existing facility link (ID: ${facilityIdNumber}): ${updateError.message}`);
+                          console.error('Error updating existing facility link:', updateError);
+                        } else {
+                          console.log(`Successfully updated existing facility link with property_id=${propertyId}, facility_id=${facilityIdNumber}`);
+                        }
+                        continue;
+                      }
+
+                      // Facility doesn't exist yet - insert it
+                      const { error: insertError } = await baseClient
+                        .from('property_facilities')
+                        .insert({
+                          property_id: propertyId,
+                          facility_id: facilityIdNumber,
+                          image_url: newImageUrl || null,
+                        });
+
+                      if (insertError) {
+                        // Check if it's a duplicate key error (race condition or concurrent edit)
+                        if (insertError.code === '23505' || insertError.message.includes('duplicate key') || insertError.message.includes('unique constraint')) {
+                          console.warn(`Facility (ID: ${facilityIdNumber}) was added by another operation. Attempting to update instead.`);
+                          // Try to update it using composite key
+                          const { error: raceUpdateError } = await baseClient
+                            .from('property_facilities')
+                            .update({
+                              image_url: newImageUrl || null,
+                            })
+                            .eq('property_id', propertyId)
+                            .eq('facility_id', facilityIdNumber);
+
+                          if (raceUpdateError) {
+                            errors.push(`Failed to add/update facility (ID: ${facilityIdNumber}): ${raceUpdateError.message}`);
+                          } else {
+                            console.log(`Successfully updated facility link after race condition with property_id=${propertyId}, facility_id=${facilityIdNumber}`);
+                          }
+                        } else {
+                          errors.push(`Failed to add facility (ID: ${facilityIdNumber}): ${insertError.message}`);
+                          console.error('Error inserting facility into property_facilities:', {
+                            insertError,
+                            propertyId,
+                            facilityId: facilityIdNumber,
+                            facilityUpdate
+                          });
+                        }
+                      } else {
+                        console.log(`Successfully added facility with property_id=${propertyId}, facility_id=${facilityIdNumber}`);
+                      }
+                    } catch (err: any) {
+                      errors.push(`Error adding facility (ID: ${facilityIdNumber}): ${err.message || 'Unknown error'}`);
+                      console.error('Exception during facility insertion:', err);
+                      // Continue processing other facilities
+                    }
+                    continue;
+                  }
+
+                  // Find facility by facility_id
+                  const facility = facilities.find((f: any) => 
+                    Number(f.id) === facilityIdNumber ||
+                    (f.propertyFacility?.facility_id && Number(f.propertyFacility.facility_id) === facilityIdNumber)
+                  );
+                  
+                  if (!facility) {
+                    console.warn('Facility not found for update:', {
+                      facilityIdNumber,
+                      facilityUpdate
+                    });
+                    continue;
+                  }
+
+                  // Get property_id and facility_id for composite key update
+                  const updatePropertyId = propertyId;
+                  const updateFacilityId = facilityIdNumber || facility.propertyFacility?.facility_id || facility.id;
+                  
+                  if (!updatePropertyId || !updateFacilityId) {
+                    errors.push(`Cannot update facility "${facility.name || 'Unknown'}": Missing property_id or facility_id.`);
+                    console.error('Missing composite key for update:', {
+                      updatePropertyId,
+                      updateFacilityId,
+                      facility
+                    });
+                    continue;
+                  }
                   
                   const facilityAny = facility as any;
                   const oldImageUrl = (facilityAny.propertyFacility?.image_url || facilityAny.image_url || '').trim();
-                  const newImageUrl = (facilityUpdate.image_url || '').trim();
                   
                   if (oldImageUrl !== newImageUrl) {
                     // Delete old image from R2 if it's an R2 URL
                     if (oldImageUrl && oldImageUrl.startsWith('http')) {
                       try {
-                        await deleteFromR2(oldImageUrl);
+                        const deleteResult = await deleteFromR2(oldImageUrl);
+                        if (!deleteResult.success) {
+                          console.warn(`Failed to delete old facility image from R2: ${deleteResult.error}`);
+                        }
                       } catch (err) {
                         console.error('Error deleting facility image from R2:', err);
+                        // Don't fail the whole operation if R2 delete fails
                       }
                     }
-                    
-                    await baseClient
-                      .from('property_facilities')
-                      .update({ image_url: newImageUrl || null })
-                      .eq('id', facility.propertyFacility.id);
                   }
+
+                  try {
+                    const { error: updateError } = await baseClient
+                      .from('property_facilities')
+                      .update({ 
+                        image_url: newImageUrl || null,
+                      })
+                      .eq('property_id', updatePropertyId)
+                      .eq('facility_id', updateFacilityId);
+
+                    if (updateError) {
+                      errors.push(`Failed to update facility "${facility.name || 'Unknown'}": ${updateError.message}`);
+                      console.error('Error updating facility in property_facilities:', {
+                        updateError,
+                        propertyId: updatePropertyId,
+                        facilityId: updateFacilityId,
+                        facility
+                      });
+                      throw new Error(`Failed to update facility: ${updateError.message}`);
+                    }
+
+                    console.log(`Successfully updated facility "${facility.name || 'Unknown'}" with property_id=${updatePropertyId}, facility_id=${updateFacilityId}`);
+                  } catch (err: any) {
+                    errors.push(`Error updating facility "${facility.name || 'Unknown'}": ${err.message || 'Unknown error'}`);
+                    console.error('Exception during facility update:', err);
+                    // Continue processing other facilities
+                  }
+                }
+                
+                // Show errors if any occurred
+                if (errors.length > 0) {
+                  const errorMessage = `Some facility operations failed:\n\n${errors.join('\n')}`;
+                  console.error('Facility operation errors:', errors);
+                  alert(errorMessage);
+                  // Still refresh to show what was successfully updated
                 }
                 
                 const refreshId = slug || property.slug || property.id.toString();
                 await fetchPropertyDetails(refreshId);
               }}
             />
+            {editingSections.has('facilities') && (
+              <div className="mb-4 p-3 border border-dashed border-gray-300 dark:border-zinc-800 rounded">
+                <p className="text-xs text-gray-600 dark:text-zinc-400 mb-2">Search and add facility from master list</p>
+                <div className="grid grid-cols-1 md:grid-cols-[2fr_auto] gap-2 items-center">
+                  <input
+                    type="text"
+                    value={facilitySearchTerm}
+                    onChange={async (e) => {
+                      const term = e.target.value;
+                      setFacilitySearchTerm(term);
+                      if (term.trim().length >= 2) {
+                        const { data } = await baseClient
+                          .from('facilities')
+                          .select('id,name')
+                          .ilike('name', `%${term}%`)
+                          .limit(8);
+                        setFacilitySearchResults(data || []);
+                      } else {
+                        setFacilitySearchResults([]);
+                      }
+                    }}
+                    className="w-full rounded border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-2 py-2 text-sm"
+                    placeholder="Search facilities"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacilitySearchTerm('');
+                      setFacilitySearchResults([]);
+                    }}
+                    className="px-3 py-2 bg-gray-200 dark:bg-zinc-800 text-sm rounded hover:bg-gray-300 dark:hover:bg-zinc-700"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {facilitySearchResults.length > 0 && (
+                  <div className="mt-2 border border-gray-200 dark:border-zinc-800 rounded p-2 max-h-40 overflow-auto space-y-1">
+                    {facilitySearchResults.map((res: any) => (
+                      <button
+                        key={res.id}
+                        type="button"
+                        onClick={() => {
+                          const existing = editValues['facilities']?.facilities || facilities.map((f: any) => ({
+                            propertyFacilityCompositeKey: f.propertyFacility?.compositeKey,
+                            propertyId: f.propertyFacility?.property_id,
+                            facilityId: f.id,
+                            name: f.name,
+                            image_url: f.propertyFacility?.image_url || f.image_url || '',
+                          }));
+                          const updated = [
+                            ...existing,
+                            {
+                              propertyFacilityCompositeKey: null,
+                              propertyId: property.id,
+                              facilityId: res.id,
+                              name: res.name,
+                              image_url: '',
+                              _isNew: true,
+                            },
+                          ];
+                          updateEditValue('facilities', 'facilities', updated);
+                          setFacilitySearchTerm('');
+                          setFacilitySearchResults([]);
+                        }}
+                        className="w-full flex justify-between items-center px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-900 text-xs text-left"
+                      >
+                        <span>{res.name}</span>
+                        <span className="text-[11px] text-gray-500 dark:text-zinc-500">ID: {res.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-500 dark:text-zinc-500 mt-1">Select to add; you can remove existing facilities below.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {facilities.map((facility: any) => {
+              {(editValues['facilities']?.facilities || facilities)
+                .filter((facility: any) => {
+                  // Filter out empty facilities (those without a valid facilityId)
+                  // Only show facilities that have been properly selected/added
+                  if (facility._isNew && (!facility.facilityId || facility.facilityId === '' || facility.facilityId === null)) {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((facility: any, idx: number) => {
                 const facilityImageUrl = facility.propertyFacility?.image_url || facility.image_url;
                 const isEditing = editingSections.has('facilities');
-                const editFacilityData = editValues['facilities']?.facilities?.find((f: any) => f.facilityId === facility.id);
+                const editFacilityData = isEditing
+                  ? (editValues['facilities']?.facilities || [])[idx] || editValues['facilities']?.facilities?.find((f: any) => f.facilityId === facility.id)
+                  : null;
                 const displayImageUrl = isEditing && editFacilityData ? editFacilityData.image_url : facilityImageUrl;
+                const markedForRemoval = isEditing && editFacilityData?._remove;
                 
                 return (
-                  <div key={facility.id} className="border border-gray-200 dark:border-zinc-900 rounded-lg overflow-hidden">
+                  <div
+                    key={facility.propertyFacilityId || facility.id || idx}
+                    className={`border border-gray-200 dark:border-zinc-900 rounded-lg overflow-hidden relative ${markedForRemoval ? 'opacity-60 ring-1 ring-red-400' : ''}`}
+                  >
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const facilities = editValues['facilities']?.facilities || [];
+                          const updated = [...facilities];
+                          updated[idx] = {
+                            ...(updated[idx] || facility),
+                            propertyFacilityCompositeKey:
+                              (updated[idx] && updated[idx].propertyFacilityCompositeKey) ||
+                              facility.propertyFacilityCompositeKey ||
+                              facility.propertyFacility?.compositeKey ||
+                              null,
+                            propertyId:
+                              (updated[idx] && updated[idx].propertyId) ||
+                              facility.propertyId ||
+                              facility.propertyFacility?.property_id ||
+                              property.id,
+                            facilityId:
+                              (updated[idx] && updated[idx].facilityId) ||
+                              facility.facilityId ||
+                              facility.id ||
+                              null,
+                            _remove: true,
+                          };
+                          updateEditValue('facilities', 'facilities', updated);
+                        }}
+                        className="absolute top-2 right-2 p-1 rounded-full bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900"
+                        title="Remove facility"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                    {markedForRemoval && (
+                      <div className="absolute left-0 top-0 px-2 py-1 bg-red-600 text-white text-[10px]">
+                        Marked for removal
+                      </div>
+                    )}
                     {isEditing ? (
-                      <div className="p-3">
+                      <div className="p-3 space-y-2">
+                        <label className="block text-xs font-medium text-gray-700 dark:text-zinc-300 mb-1">Facility ID</label>
+                        <input
+                          type="number"
+                          value={editFacilityData?.facilityId ?? facility.facilityId ?? facility.id ?? ''}
+                          onChange={(e) => {
+                            const facilities = editValues['facilities']?.facilities || [];
+                            const updated = [...facilities];
+                            updated[idx] = { ...(updated[idx] || facility), facilityId: e.target.value };
+                            updateEditValue('facilities', 'facilities', updated);
+                          }}
+                          className="w-full mb-2 rounded border border-gray-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-2 py-1 text-sm"
+                          placeholder="Enter facility ID"
+                        />
+                        <div className="text-[11px] text-gray-500 dark:text-zinc-400 mb-2">Ref: facility_id in facilities table</div>
                         <FileUpload
-                          label={facility.name}
+                          label={facility.name || editFacilityData?.name || 'Facility Image'}
                           accept="image/*"
                           category="image"
-                          currentUrl={editFacilityData?.image_url || ''}
+                          currentUrl={editFacilityData?.image_url || facility.image_url || ''}
                           onUploadComplete={(url) => {
                             const facilities = editValues['facilities']?.facilities || [];
-                            const updatedFacilities = facilities.map((f: any) => 
-                              f.facilityId === facility.id ? { ...f, image_url: url } : f
-                            );
+                            const updatedFacilities = [...facilities];
+                            updatedFacilities[idx] = { ...(updatedFacilities[idx] || facility), image_url: url };
                             updateEditValue('facilities', 'facilities', updatedFacilities);
                           }}
                         />
@@ -1889,13 +2297,14 @@ const PropertyDetailsPage: React.FC = () => {
                         />
                       </div>
                     ) : null}
-                    <div className="p-3">
+                    <div className="p-3 space-y-1">
                       <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-zinc-400">
                         <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
-                        <span className="text-black dark:text-white">{facility.name}</span>
+                        <span className="text-black dark:text-white">{facility.name || 'Facility'}</span>
                 </div>
+                      <div className="text-[11px] text-gray-500 dark:text-zinc-500">ID: {facility.facilityId || facility.id || '-'}</div>
                     </div>
                   </div>
                 );
@@ -2025,17 +2434,7 @@ const PropertyDetailsPage: React.FC = () => {
             />
             {buildings.length === 0 && !editingSections.has('buildings') ? (
               <div className="text-center py-8">
-                <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">No buildings added yet</p>
-                <button
-                  onClick={() => {
-                    toggleEdit('buildings', {
-                      buildings: [{ name: '', description: '', completion_date: '', image_url: '', _isNew: true }],
-                    });
-                  }}
-                  className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800"
-                >
-                  + Add Building
-                </button>
+                <p className="text-sm text-gray-500 dark:text-zinc-400">No buildings added yet</p>
               </div>
             ) : (
               <>

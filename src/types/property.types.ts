@@ -21,6 +21,7 @@ export interface Building {
 
 export interface Facility {
   id: string;
+  facility_id?: number | null; // existing facility id (from facilities table)
   facility_name: string;
   facility_image_url: string;
   facility_image_source: string;

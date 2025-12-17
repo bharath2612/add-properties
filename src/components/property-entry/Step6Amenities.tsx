@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { Building, Facility, MapPoint } from '../../types/property.types';
-import { inputClasses, labelClasses, helpTextClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
+import { inputClasses, labelClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
 import FileUpload from './FileUpload';
 import { uploadToR2 } from '../../utils/r2Upload';
+import { supabase } from '../../lib/supabase';
 
 // Compact image upload component for inline use
 const CompactImageUpload: React.FC<{
@@ -114,9 +115,15 @@ const Step6Amenities: React.FC = () => {
   };
 
   // Facilities
+  const [facilitySearchTerm, setFacilitySearchTerm] = useState('');
+  const [facilityResults, setFacilityResults] = useState<Array<{ id: number; name: string }>>([]);
+  const [searchingFacilities, setSearchingFacilities] = useState(false);
+  const [facilitySearchError, setFacilitySearchError] = useState<string | null>(null);
+
   const addFacility = () => {
     const newFacility: Facility = {
       id: Date.now().toString(),
+      facility_id: null,
       facility_name: '',
       facility_image_url: '',
       facility_image_source: '',
@@ -124,27 +131,45 @@ const Step6Amenities: React.FC = () => {
     updateFormData({ facilities: [...formData.facilities, newFacility] });
   };
 
-  const handleBulkFacilities = (input: string) => {
-    if (!input.trim()) return;
-    
-    // Split by comma and clean up each name
-    const facilityNames = input
-      .split(',')
-      .map(name => name.trim())
-      .filter(name => name.length > 0);
-    
-    if (facilityNames.length === 0) return;
-    
-    // Create facilities from the names
-    const newFacilities: Facility[] = facilityNames.map(name => ({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      facility_name: name,
+  const addExistingFacility = (facility: { id: number; name: string }) => {
+    // Avoid duplicates by facility_id
+    if (formData.facilities.some(f => f.facility_id === facility.id)) return;
+    const newFacility: Facility = {
+      id: Date.now().toString(),
+      facility_id: facility.id,
+      facility_name: facility.name,
       facility_image_url: '',
       facility_image_source: '',
-    }));
-    
-    // Add to existing facilities
-    updateFormData({ facilities: [...formData.facilities, ...newFacilities] });
+    };
+    updateFormData({ facilities: [...formData.facilities, newFacility] });
+    // Clear search after selection
+    setFacilitySearchTerm('');
+    setFacilityResults([]);
+    setFacilitySearchError(null);
+  };
+
+  const searchFacilities = async (term: string) => {
+    setFacilitySearchTerm(term);
+    if (term.trim().length < 2) {
+      setFacilityResults([]);
+      return;
+    }
+    setSearchingFacilities(true);
+    setFacilitySearchError(null);
+    try {
+      const { data, error } = await supabase
+        .from('facilities')
+        .select('id,name')
+        .ilike('name', `%${term}%`)
+        .limit(10);
+      if (error) throw error;
+      setFacilityResults(data || []);
+    } catch (err: any) {
+      console.error('Error searching facilities', err);
+      setFacilitySearchError(err.message || 'Failed to search facilities');
+    } finally {
+      setSearchingFacilities(false);
+    }
   };
 
   const updateFacility = (id: string, field: keyof Facility, value: any) => {
@@ -277,34 +302,45 @@ const Step6Amenities: React.FC = () => {
           Facilities <span className="text-red-500">*</span>
         </h3>
 
-        {/* Bulk Add Facilities */}
+        {/* Search & add existing facilities */}
         <div className={cardClasses}>
-          <label className={labelClasses}>
-            Bulk Add Facilities (comma-separated)
-          </label>
-          <textarea
-            className={inputClasses}
-            rows={2}
-            placeholder="e.g., Swimming Pool, Gym, Parking, Security, Elevator"
-            onBlur={(e) => {
-              if (e.target.value.trim()) {
-                handleBulkFacilities(e.target.value);
-                e.target.value = ''; // Clear after processing
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                if (e.currentTarget.value.trim()) {
-                  handleBulkFacilities(e.currentTarget.value);
-                  e.currentTarget.value = ''; // Clear after processing
-                }
-              }
-            }}
-          />
-          <p className={helpTextClasses}>
-            Paste comma-separated facility names and press Ctrl+Enter (or click outside) to add them all at once
-          </p>
+          <label className={labelClasses}>Search facilities (from master list)</label>
+          <div className="flex flex-col md:flex-row gap-2">
+            <input
+              type="text"
+              value={facilitySearchTerm}
+              onChange={(e) => searchFacilities(e.target.value)}
+              className={inputClasses}
+              placeholder="Type to search facilities"
+            />
+          </div>
+          {facilitySearchError && <p className="text-xs text-red-500 mt-1">{facilitySearchError}</p>}
+          {searchingFacilities && <p className="text-xs text-gray-500 mt-1">Searching...</p>}
+          {!searchingFacilities && facilityResults.length > 0 && (
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {facilityResults.map((fac) => (
+                <button
+                  key={fac.id}
+                  type="button"
+                  onClick={() => addExistingFacility(fac)}
+                  className="flex justify-between items-center px-3 py-2 rounded border border-gray-200 dark:border-zinc-800 text-sm text-left hover:bg-gray-100 dark:hover:bg-zinc-900"
+                >
+                  <span>{fac.name}</span>
+                  <span className="text-[11px] text-gray-500 dark:text-zinc-500">ID: {fac.id}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={addFacility}
+              className="px-3 py-2 rounded bg-indigo-600 dark:bg-indigo-500 text-white text-sm hover:bg-indigo-700 dark:hover:bg-indigo-600"
+            >
+              + Add Other (create new)
+            </button>
+            <p className="text-xs text-gray-500 dark:text-zinc-400">Use this to add a new facility if not found.</p>
+          </div>
         </div>
 
         {/* Facilities List */}
@@ -319,11 +355,18 @@ const Step6Amenities: React.FC = () => {
                 <input
                   type="text"
                   value={facility.facility_name}
-                  onChange={(e) => updateFacility(facility.id, 'facility_name', e.target.value)}
+                  onChange={(e) => {
+                    if (facility.facility_id) return; // lock name for existing facilities
+                    updateFacility(facility.id, 'facility_name', e.target.value);
+                  }}
+                  disabled={!!facility.facility_id}
                   className={inputClasses}
                   placeholder="e.g., Swimming Pool"
                   required
                 />
+                <p className="text-[11px] text-gray-500 dark:text-zinc-400">
+                  Facility ID: {facility.facility_id ?? 'New / Other'}
+                </p>
               </div>
 
               {/* Image Upload */}
@@ -349,21 +392,19 @@ const Step6Amenities: React.FC = () => {
                 </button>
               </div>
 
-              {/* Remove Button */}
-              {formData.facilities.length > 1 && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => removeFacility(facility.id)}
-                    className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                    title="Remove facility"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )}
+              {/* Remove Button (even if it's the only one) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => removeFacility(facility.id)}
+                  className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  title="Remove facility"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         ))}

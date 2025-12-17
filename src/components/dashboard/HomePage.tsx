@@ -204,9 +204,11 @@ const HomePage: React.FC = () => {
                     backgroundColor: '#18181b', 
                     border: '1px solid #27272a',
                     borderRadius: '6px',
-                    fontSize: '12px'
+                    fontSize: '12px',
+                    color: '#fff',
                   }}
                   labelStyle={{ color: '#fff' }}
+                  itemStyle={{ color: '#fff' }}
                 />
               </PieChart>
             </ResponsiveContainer>

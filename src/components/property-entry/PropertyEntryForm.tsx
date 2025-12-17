@@ -21,7 +21,7 @@ import Step8PaymentParking from './Step8PaymentParking';
 const TOTAL_STEPS = 8;
 
 const PropertyEntryForm: React.FC = () => {
-  const { formData, currentStep, setCurrentStep, resetFormData } = useFormContext();
+  const { formData, currentStep, setCurrentStep, resetFormData, updateFormData } = useFormContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [dryRun, setDryRun] = useState(false);
@@ -37,7 +37,31 @@ const PropertyEntryForm: React.FC = () => {
     } else if (currentStep > TOTAL_STEPS) {
       setCurrentStep(TOTAL_STEPS);
     }
-  }, [currentStep, setCurrentStep]);
+
+    // Ensure at least one unit type exists when entering step 5
+    if (
+      currentStep === 5 &&
+      Array.isArray(formData.unitTypes) &&
+      formData.unitTypes.length === 0
+    ) {
+      updateFormData({
+        unitTypes: [
+          {
+            id: Date.now().toString(),
+            unit_type: '',
+            normalized_type: '',
+            unit_bedrooms: '',
+            units_amount: null,
+            units_area_from_m2: null,
+            units_area_to_m2: null,
+            units_price_from: null,
+            units_price_to: null,
+            typical_unit_image_url: '',
+          },
+        ],
+      });
+    }
+  }, [currentStep, setCurrentStep, formData.unitTypes, updateFormData]);
 
   const validateStep = (step: number): boolean => {
     switch (step) {
@@ -56,9 +80,13 @@ const PropertyEntryForm: React.FC = () => {
       case 4:
         return !!(formData.price_currency?.trim() && formData.area_unit?.trim());
       case 5:
-        // Unit types are optional but if added, they need required fields
-        return formData.unitTypes.every(
-          (unit) => unit.unit_type?.trim() && unit.unit_bedrooms?.trim()
+        // At least one unit type is required; all must have required fields
+        return (
+          Array.isArray(formData.unitTypes) &&
+          formData.unitTypes.length > 0 &&
+          formData.unitTypes.every(
+            (unit) => unit.unit_type?.trim() && unit.unit_bedrooms?.trim()
+          )
         );
       case 6:
         return true; // All optional

@@ -315,20 +315,24 @@ export const submitProperty = async (
     // Step 8: Handle Facilities (check if exists, create if not, then link)
     if (formData.facilities && formData.facilities.length > 0) {
       for (const facility of formData.facilities) {
-        // Search for existing facility by name
-        const { data: existingFacility } = await supabase
-          .from('facilities')
-          .select('id')
-          .eq('name', facility.facility_name)
-          .single();
+        let facility_id: number | null = facility.facility_id ?? null;
 
-        let facility_id: number;
+        // If we don't have an id yet, try to find by name
+        if (!facility_id && facility.facility_name) {
+          const { data: existingFacility } = await supabase
+            .from('facilities')
+            .select('id')
+            .eq('name', facility.facility_name)
+            .maybeSingle();
 
-        if (existingFacility) {
-          // Use existing facility
-          facility_id = existingFacility.id;
-        } else {
-          // Create new facility
+          if (existingFacility) {
+            facility_id = existingFacility.id;
+          }
+        }
+
+        // If still no id, create a new facility with this name
+        if (!facility_id) {
+          if (!facility.facility_name) continue;
           const { data: newFacility, error: facilityInsertError } = await supabase
             .from('facilities')
             .insert({ name: facility.facility_name })
