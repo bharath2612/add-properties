@@ -1314,9 +1314,57 @@ const PropertyDetailsPage: React.FC = () => {
               onSave={async () => {
                 const values = editValues['media'] || {};
                 const updates: any = {};
-                if (values.video_url !== undefined) updates.video_url = values.video_url || null;
-                if (values.brochure_url !== undefined) updates.brochure_url = values.brochure_url || null;
-                if (values.layouts_pdf !== undefined) updates.layouts_pdf = values.layouts_pdf || null;
+                
+                // Handle video_url update with R2 cleanup
+                if (values.video_url !== undefined) {
+                  const newVideoUrl = values.video_url || null;
+                  const oldVideoUrl = property.video_url;
+                  
+                  // Delete old video from R2 if it exists and is from R2
+                  if (oldVideoUrl && oldVideoUrl !== newVideoUrl && oldVideoUrl.startsWith('http')) {
+                    try {
+                      await deleteFromR2(oldVideoUrl);
+                    } catch (err) {
+                      console.error('Error deleting old video from R2:', err);
+                    }
+                  }
+                  
+                  updates.video_url = newVideoUrl;
+                }
+                
+                // Handle brochure_url update with R2 cleanup
+                if (values.brochure_url !== undefined) {
+                  const newBrochureUrl = values.brochure_url || null;
+                  const oldBrochureUrl = property.brochure_url;
+                  
+                  // Delete old brochure from R2 if it exists and is from R2
+                  if (oldBrochureUrl && oldBrochureUrl !== newBrochureUrl && oldBrochureUrl.startsWith('http')) {
+                    try {
+                      await deleteFromR2(oldBrochureUrl);
+                    } catch (err) {
+                      console.error('Error deleting old brochure from R2:', err);
+                    }
+                  }
+                  
+                  updates.brochure_url = newBrochureUrl;
+                }
+                
+                // Handle layouts_pdf update with R2 cleanup
+                if (values.layouts_pdf !== undefined) {
+                  const newLayoutsPdfUrl = values.layouts_pdf || null;
+                  const oldLayoutsPdfUrl = property.layouts_pdf;
+                  
+                  // Delete old floor plans PDF from R2 if it exists and is from R2
+                  if (oldLayoutsPdfUrl && oldLayoutsPdfUrl !== newLayoutsPdfUrl && oldLayoutsPdfUrl.startsWith('http')) {
+                    try {
+                      await deleteFromR2(oldLayoutsPdfUrl);
+                    } catch (err) {
+                      console.error('Error deleting old floor plans PDF from R2:', err);
+                    }
+                  }
+                  
+                  updates.layouts_pdf = newLayoutsPdfUrl;
+                }
                 
                 const { error } = await baseClient
                   .from('properties')
@@ -1327,33 +1375,78 @@ const PropertyDetailsPage: React.FC = () => {
               }}
             />
             {editingSections.has('media') ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-zinc-500 mb-1 block">Video URL</label>
-                  <input
-                    type="url"
-                    value={editValues['media']?.video_url || ''}
-                    onChange={(e) => updateEditValue('media', 'video_url', e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <FileUpload
+                    label="Property Video"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    category="video"
+                    currentUrl={editValues['media']?.video_url || ''}
+                    onUploadComplete={(url) => {
+                      updateEditValue('media', 'video_url', url);
+                    }}
+                    helpText="Upload property tour or promotional video (Max 50MB)"
                   />
+                  {editValues['media']?.video_url && (
+                    <button
+                      type="button"
+                      onClick={() => updateEditValue('media', 'video_url', '')}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Remove video
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-zinc-500 mb-1 block">Brochure URL</label>
-                  <input
-                    type="url"
-                    value={editValues['media']?.brochure_url || ''}
-                    onChange={(e) => updateEditValue('media', 'brochure_url', e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
+                <div className="space-y-2">
+                  <FileUpload
+                    label="Brochure PDF"
+                    accept="application/pdf"
+                    category="document"
+                    currentUrl={editValues['media']?.brochure_url || ''}
+                    onUploadComplete={(url) => {
+                      updateEditValue('media', 'brochure_url', url);
+                    }}
+                    helpText="Property brochure (Max 50MB)"
                   />
+                  {editValues['media']?.brochure_url && (
+                    <button
+                      type="button"
+                      onClick={() => updateEditValue('media', 'brochure_url', '')}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Remove brochure
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-zinc-500 mb-1 block">Floor Plans PDF URL</label>
-                  <input
-                    type="url"
-                    value={editValues['media']?.layouts_pdf || ''}
-                    onChange={(e) => updateEditValue('media', 'layouts_pdf', e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
+                <div className="space-y-2">
+                  <FileUpload
+                    label="Floor Plans PDF"
+                    accept="application/pdf"
+                    category="document"
+                    currentUrl={editValues['media']?.layouts_pdf || ''}
+                    onUploadComplete={(url) => {
+                      updateEditValue('media', 'layouts_pdf', url);
+                    }}
+                    helpText="Floor plans and layouts (Max 50MB)"
                   />
+                  {editValues['media']?.layouts_pdf && (
+                    <button
+                      type="button"
+                      onClick={() => updateEditValue('media', 'layouts_pdf', '')}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Remove floor plans
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
