@@ -2322,7 +2322,7 @@ const PropertyDetailsPage: React.FC = () => {
                         completion_date: building.completion_date || '',
                         image_url: building.image_url || '',
                       })),
-                      { name: '', description: '', completion_date: '', image_url: '', _isNew: true },
+                      { id: `temp-${Date.now()}-${Math.random()}`, name: '', description: '', completion_date: '', image_url: '', _isNew: true },
                     ],
                   });
                 } else {
@@ -2335,7 +2335,7 @@ const PropertyDetailsPage: React.FC = () => {
                   }));
                   updateEditValue('buildings', 'buildings', [
                     ...currentBuildings,
-                    { name: '', description: '', completion_date: '', image_url: '', _isNew: true },
+                    { id: `temp-${Date.now()}-${Math.random()}`, name: '', description: '', completion_date: '', image_url: '', _isNew: true },
                   ]);
                 }
               }}
@@ -2344,8 +2344,42 @@ const PropertyDetailsPage: React.FC = () => {
                 const values = editValues['buildings'] || {};
                 const buildingUpdates = values.buildings || [];
                 
-                // Filter out empty new buildings (no name and no image)
+                // Handle removed buildings first
+                for (const buildingUpdate of buildingUpdates) {
+                  if (buildingUpdate._remove && !buildingUpdate._isNew) {
+                    // Delete existing building from database
+                    const building = buildings.find((b: any) => b.id === buildingUpdate.id);
+                    if (!building) continue;
+                    
+                    const oldImageUrl = (building.image_url || '').trim();
+                    
+                    // Delete image from R2 if it exists
+                    if (oldImageUrl && oldImageUrl.startsWith('http')) {
+                      try {
+                        await deleteFromR2(oldImageUrl);
+                      } catch (err) {
+                        console.error('Error deleting building image from R2:', err);
+                      }
+                    }
+                    
+                    // Delete building from database
+                    const { error: deleteError } = await baseClient
+                      .from('property_buildings')
+                      .delete()
+                      .eq('id', building.id);
+                    
+                    if (deleteError) {
+                      console.error('Error deleting building:', deleteError);
+                      throw deleteError;
+                    }
+                  }
+                }
+                
+                // Filter out removed buildings and empty new buildings
                 const validBuildings = buildingUpdates.filter((b: any) => {
+                  // Skip removed buildings (already handled above)
+                  if (b._remove) return false;
+                  
                   if (b._isNew) {
                     // Allow new buildings if they have at least a name or an image
                     return (b.name && b.name.trim() !== '') || (b.image_url && b.image_url.trim() !== '');
@@ -2376,7 +2410,9 @@ const PropertyDetailsPage: React.FC = () => {
                       throw err;
                     }
                   } else {
-                    // Update existing building
+                    // Update existing building (skip if marked for removal, should have been filtered out)
+                    if (buildingUpdate._remove) continue;
+                    
                     const building = buildings.find((b: any) => b.id === buildingUpdate.id);
                     if (!building) continue;
                     
@@ -2425,11 +2461,39 @@ const PropertyDetailsPage: React.FC = () => {
                   {(editingSections.has('buildings') ? editValues['buildings']?.buildings || [] : buildings).map((building: any, index: number) => {
                     const isEditing = editingSections.has('buildings');
                     const isNew = building._isNew;
-                    const editBuildingData = editValues['buildings']?.buildings?.find((b: any) => b.id === building.id);
+                    // For new buildings, use the building itself as editBuildingData since it's already in editValues
+                    const editBuildingData = isEditing 
+                      ? (editValues['buildings']?.buildings?.find((b: any) => b.id === building.id) || building)
+                      : null;
                     const displayImageUrl = isEditing && editBuildingData ? editBuildingData.image_url : building.image_url;
+                    const markedForRemoval = isEditing && editBuildingData?._remove;
                     
                     return (
-                      <div key={building.id || `new-${index}`} className="border border-gray-200 dark:border-zinc-900 rounded-lg overflow-hidden">
+                      <div key={building.id || `new-${index}`} className={`border border-gray-200 dark:border-zinc-900 rounded-lg overflow-hidden relative ${markedForRemoval ? 'opacity-60 ring-1 ring-red-400' : ''}`}>
+                        {isEditing && !isNew && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const buildingsList = editValues['buildings']?.buildings || [];
+                              const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
+                              if (buildingIndex >= 0) {
+                                buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], _remove: true };
+                                updateEditValue('buildings', 'buildings', [...buildingsList]);
+                              }
+                            }}
+                            className="absolute top-2 right-2 p-1 rounded-full bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900 z-10"
+                            title="Remove building"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                        {markedForRemoval && (
+                          <div className="absolute left-0 top-0 px-2 py-1 bg-red-600 text-white text-[10px] z-10">
+                            Marked for removal
+                          </div>
+                        )}
                         {isEditing ? (
                           <div className="p-4 space-y-3">
                             <div>
@@ -2438,22 +2502,12 @@ const PropertyDetailsPage: React.FC = () => {
                                 type="text"
                                 value={editBuildingData?.name ?? building.name ?? ''}
                                 onChange={(e) => {
-                                  const buildingsList = editValues['buildings']?.buildings || buildings.map((b: any) => ({
-                                    id: b.id,
-                                    name: b.name || '',
-                                    description: b.description || '',
-                                    completion_date: b.completion_date || '',
-                                    image_url: b.image_url || '',
-                                  }));
-                                  if (isNew) {
-                                    buildingsList[index] = { ...building, name: e.target.value };
-                                  } else {
-                                    const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
-                                    if (buildingIndex >= 0) {
-                                      buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], name: e.target.value };
-                                    }
+                                  const buildingsList = editValues['buildings']?.buildings || [];
+                                  const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
+                                  if (buildingIndex >= 0) {
+                                    buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], name: e.target.value };
+                                    updateEditValue('buildings', 'buildings', [...buildingsList]);
                                   }
-                                  updateEditValue('buildings', 'buildings', buildingsList);
                                 }}
                                 placeholder="Building name"
                                 className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
@@ -2464,22 +2518,12 @@ const PropertyDetailsPage: React.FC = () => {
                               <textarea
                                 value={editBuildingData?.description ?? building.description ?? ''}
                                 onChange={(e) => {
-                                  const buildingsList = editValues['buildings']?.buildings || buildings.map((b: any) => ({
-                                    id: b.id,
-                                    name: b.name || '',
-                                    description: b.description || '',
-                                    completion_date: b.completion_date || '',
-                                    image_url: b.image_url || '',
-                                  }));
-                                  if (isNew) {
-                                    buildingsList[index] = { ...building, description: e.target.value };
-                                  } else {
-                                    const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
-                                    if (buildingIndex >= 0) {
-                                      buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], description: e.target.value };
-                                    }
+                                  const buildingsList = editValues['buildings']?.buildings || [];
+                                  const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
+                                  if (buildingIndex >= 0) {
+                                    buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], description: e.target.value };
+                                    updateEditValue('buildings', 'buildings', [...buildingsList]);
                                   }
-                                  updateEditValue('buildings', 'buildings', buildingsList);
                                 }}
                                 placeholder="Description"
                                 className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
@@ -2492,22 +2536,12 @@ const PropertyDetailsPage: React.FC = () => {
                                 type="date"
                                 value={editBuildingData?.completion_date ?? building.completion_date ?? ''}
                                 onChange={(e) => {
-                                  const buildingsList = editValues['buildings']?.buildings || buildings.map((b: any) => ({
-                                    id: b.id,
-                                    name: b.name || '',
-                                    description: b.description || '',
-                                    completion_date: b.completion_date || '',
-                                    image_url: b.image_url || '',
-                                  }));
-                                  if (isNew) {
-                                    buildingsList[index] = { ...building, completion_date: e.target.value };
-                                  } else {
-                                    const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
-                                    if (buildingIndex >= 0) {
-                                      buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], completion_date: e.target.value };
-                                    }
+                                  const buildingsList = editValues['buildings']?.buildings || [];
+                                  const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
+                                  if (buildingIndex >= 0) {
+                                    buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], completion_date: e.target.value };
+                                    updateEditValue('buildings', 'buildings', [...buildingsList]);
                                   }
-                                  updateEditValue('buildings', 'buildings', buildingsList);
                                 }}
                                 className="w-full p-2 border border-gray-300 dark:border-zinc-800 rounded bg-white dark:bg-black text-black dark:text-white text-sm"
                               />
@@ -2518,31 +2552,19 @@ const PropertyDetailsPage: React.FC = () => {
                               category="image"
                               currentUrl={editBuildingData?.image_url ?? displayImageUrl ?? ''}
                               onUploadComplete={(url) => {
-                                const buildingsList = editValues['buildings']?.buildings || buildings.map((b: any) => ({
-                                  id: b.id,
-                                  name: b.name || '',
-                                  description: b.description || '',
-                                  completion_date: b.completion_date || '',
-                                  image_url: b.image_url || '',
-                                }));
-                                if (isNew) {
-                                  buildingsList[index] = { ...building, image_url: url };
-                                } else {
-                                  const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
-                                  if (buildingIndex >= 0) {
-                                    buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], image_url: url };
-                                  }
-                                  updateEditValue('buildings', 'buildings', buildingsList);
-                                  return;
+                                const buildingsList = editValues['buildings']?.buildings || [];
+                                const buildingIndex = buildingsList.findIndex((b: any) => b.id === building.id);
+                                if (buildingIndex >= 0) {
+                                  buildingsList[buildingIndex] = { ...buildingsList[buildingIndex], image_url: url };
+                                  updateEditValue('buildings', 'buildings', [...buildingsList]);
                                 }
-                                updateEditValue('buildings', 'buildings', buildingsList);
                               }}
                             />
                             {isNew && (
                               <button
                                 onClick={() => {
-                                  const buildings = editValues['buildings']?.buildings || [];
-                                  updateEditValue('buildings', 'buildings', buildings.filter((_: any, i: number) => i !== index));
+                                  const buildingsList = editValues['buildings']?.buildings || [];
+                                  updateEditValue('buildings', 'buildings', buildingsList.filter((b: any) => b.id !== building.id));
                                 }}
                                 className="w-full px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                               >
@@ -2586,7 +2608,7 @@ const PropertyDetailsPage: React.FC = () => {
                         const currentBuildings = editValues['buildings']?.buildings || [];
                         updateEditValue('buildings', 'buildings', [
                           ...currentBuildings,
-                          { name: '', description: '', completion_date: '', image_url: '', _isNew: true },
+                          { id: `temp-${Date.now()}-${Math.random()}`, name: '', description: '', completion_date: '', image_url: '', _isNew: true },
                         ]);
                       }}
                       className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800"
