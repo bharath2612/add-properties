@@ -512,7 +512,7 @@ const PropertyDetailsPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Images Gallery - Hero Section */}
-        {(hasImages || editingSections.has('images')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Property Images"
@@ -851,7 +851,7 @@ const PropertyDetailsPage: React.FC = () => {
         </div>
 
         {/* Overview */}
-        {(property.overview || editingSections.has('overview')) && (
+        {(
         <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6 overflow-hidden">
             <SectionHeader
               title="Overview"
@@ -897,12 +897,14 @@ const PropertyDetailsPage: React.FC = () => {
                     .replace(/$/, '</p>')
                 }}
               />
-            ) : null}
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-zinc-400">N/A - No overview added yet</p>
+            )}
           </div>
         )}
 
         {/* Key Highlights / Quick Facts */}
-        {(property.service_charge || property.furnishing || property.status || property.sale_status || editingSections.has('highlights')) && (
+        {(
         <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Key Highlights"
@@ -971,30 +973,22 @@ const PropertyDetailsPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  {property.status && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Project Status</p>
-                      <p className="text-black dark:text-white font-medium">{property.status}</p>
-              </div>
-            )}
-                  {property.sale_status && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Sale Status</p>
-                      <p className="text-black dark:text-white font-medium">{property.sale_status}</p>
-              </div>
-            )}
-                  {property.service_charge && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Service Charge</p>
-                      <p className="text-black dark:text-white font-medium">{property.service_charge}</p>
-          </div>
-                  )}
-                  {property.furnishing && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Furnishing</p>
-                      <p className="text-black dark:text-white font-medium">{property.furnishing}</p>
-        </div>
-                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Project Status</p>
+                    <p className="text-black dark:text-white font-medium">{property.status || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Sale Status</p>
+                    <p className="text-black dark:text-white font-medium">{property.sale_status || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Service Charge</p>
+                    <p className="text-black dark:text-white font-medium">{property.service_charge || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Furnishing</p>
+                    <p className="text-black dark:text-white font-medium">{property.furnishing || 'N/A'}</p>
+                  </div>
                 </>
               )}
             </div>
@@ -1002,7 +996,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Pricing Details */}
-        {(property.min_price || property.max_price || property.min_area || property.max_area || editingSections.has('pricing')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Pricing Details"
@@ -1103,32 +1097,26 @@ const PropertyDetailsPage: React.FC = () => {
                 </>
               ) : (
                 <>
-              {property.min_price && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Min Price</p>
-                  <p className="text-black dark:text-white font-medium">{formatPrice(property.min_price, property.price_currency)}</p>
-                </div>
-              )}
-              {property.max_price && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Max Price</p>
-                  <p className="text-black dark:text-white font-medium">{formatPrice(property.max_price, property.price_currency)}</p>
-                </div>
-              )}
-              {property.min_area && property.max_area && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Area Range</p>
-                  <p className="text-black dark:text-white font-medium">
-                    {property.min_area} - {property.max_area} {property.area_unit || 'sqft'}
-                  </p>
-                </div>
-              )}
-              {property.price_currency && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Currency</p>
-                  <p className="text-black dark:text-white font-medium">{property.price_currency}</p>
-                </div>
-                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Min Price</p>
+                    <p className="text-black dark:text-white font-medium">{property.min_price ? formatPrice(property.min_price, property.price_currency) : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Max Price</p>
+                    <p className="text-black dark:text-white font-medium">{property.max_price ? formatPrice(property.max_price, property.price_currency) : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Area Range</p>
+                    <p className="text-black dark:text-white font-medium">
+                      {property.min_area && property.max_area 
+                        ? `${property.min_area} - ${property.max_area} ${property.area_unit || 'sqft'}`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Currency</p>
+                    <p className="text-black dark:text-white font-medium">{property.price_currency || 'N/A'}</p>
+                  </div>
                 </>
               )}
             </div>
@@ -1136,7 +1124,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Project Status & Timeline */}
-        {((property as any).permit_id || property.completion_datetime || property.readiness !== null || editingSections.has('status_timeline')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Project Status & Timeline"
@@ -1196,24 +1184,18 @@ const PropertyDetailsPage: React.FC = () => {
                 </>
               ) : (
                 <>
-              {(property as any).permit_id && (
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">RERA Number / Permit ID</p>
-                  <p className="text-black dark:text-white font-mono">{(property as any).permit_id}</p>
-                </div>
-              )}
-                  {property.completion_datetime && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Expected Completion</p>
-                      <p className="text-black dark:text-white">{new Date(property.completion_datetime).toLocaleDateString()}</p>
-                    </div>
-                  )}
-                  {property.readiness !== null && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Construction Readiness</p>
-                      <p className="text-black dark:text-white">{property.readiness}%</p>
-                    </div>
-                  )}
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">RERA Number / Permit ID</p>
+                <p className="text-black dark:text-white font-mono">{(property as any).permit_id || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Expected Completion</p>
+                <p className="text-black dark:text-white">{property.completion_datetime ? new Date(property.completion_datetime).toLocaleDateString() : 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Construction Readiness</p>
+                <p className="text-black dark:text-white">{property.readiness !== null ? `${property.readiness}%` : 'N/A'}</p>
+              </div>
                 </>
               )}
             </div>
@@ -1221,7 +1203,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Buyer Protection */}
-        {(property.has_escrow || property.post_handover || editingSections.has('protection')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Buyer Protection"
@@ -1288,7 +1270,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Parking Specifications */}
-        {((property as any).parking || editingSections.has('parking')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Parking Specifications"
@@ -1314,13 +1296,13 @@ const PropertyDetailsPage: React.FC = () => {
                 placeholder="Enter parking specifications..."
               />
             ) : (
-            <p className="text-sm text-gray-700 dark:text-zinc-300 whitespace-pre-line">{(property as any).parking}</p>
+              <p className="text-sm text-gray-700 dark:text-zinc-300 whitespace-pre-line">{(property as any).parking || 'N/A - No parking specifications added yet'}</p>
             )}
           </div>
         )}
 
         {/* Media & Documents */}
-        {(property.video_url || property.brochure_url || property.layouts_pdf || editingSections.has('media')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Media & Documents"
@@ -1377,7 +1359,7 @@ const PropertyDetailsPage: React.FC = () => {
               </div>
             ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {property.video_url && (
+              {property.video_url ? (
                 <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1394,8 +1376,12 @@ const PropertyDetailsPage: React.FC = () => {
                     Watch Video
                   </a>
                 </div>
+              ) : (
+                <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">N/A - No video</p>
+                </div>
               )}
-              {property.brochure_url && (
+              {property.brochure_url ? (
                 <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1412,8 +1398,12 @@ const PropertyDetailsPage: React.FC = () => {
                     Download Brochure
                   </a>
                 </div>
+              ) : (
+                <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">N/A - No brochure</p>
+                </div>
               )}
-              {property.layouts_pdf && (
+              {property.layouts_pdf ? (
                 <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
@@ -1430,6 +1420,10 @@ const PropertyDetailsPage: React.FC = () => {
                     Download Floor Plans
                   </a>
                 </div>
+              ) : (
+                <div className="border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">N/A - No floor plans</p>
+                </div>
               )}
             </div>
         )}
@@ -1437,7 +1431,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Unit Types */}
-        {(unitBlocks.length > 0 || editingSections.has('unit_types')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Unit Types"
@@ -1527,18 +1521,8 @@ const PropertyDetailsPage: React.FC = () => {
             />
             {unitBlocks.length === 0 && !editingSections.has('unit_types') ? (
               <div className="text-center py-8">
-                <p className="text-sm text-gray-500 dark:text-zinc-400 mb-4">No unit types added yet</p>
-                <button
-                  onClick={() => {
-                    toggleEdit('unit_types', {
-                      units: [{ unit_bedrooms: '', image_url: '', _isNew: true }],
-                    });
-                  }}
-                  className="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded text-sm hover:bg-blue-700 dark:hover:bg-blue-800"
-                >
-                  + Add Unit Type
-                </button>
-          </div>
+                <p className="text-sm text-gray-500 dark:text-zinc-400">N/A - No unit types added yet</p>
+              </div>
             ) : (
               <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1818,7 +1802,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Facilities & Amenities */}
-        {(facilities.length > 0 || editingSections.has('facilities') || true) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Facilities & Amenities"
@@ -2314,7 +2298,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Buildings */}
-        {(buildings.length > 0 || editingSections.has('buildings') || true) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Buildings"
@@ -2434,7 +2418,7 @@ const PropertyDetailsPage: React.FC = () => {
             />
             {buildings.length === 0 && !editingSections.has('buildings') ? (
               <div className="text-center py-8">
-                <p className="text-sm text-gray-500 dark:text-zinc-400">No buildings added yet</p>
+                <p className="text-sm text-gray-500 dark:text-zinc-400">N/A - No buildings added yet</p>
               </div>
             ) : (
               <>
@@ -2618,7 +2602,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Location */}
-        {(property.area || property.city || property.country || (property as any).coordinates || (property as any).coordinates_text || property.website || editingSections.has('location')) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Location"
@@ -2705,20 +2689,18 @@ const PropertyDetailsPage: React.FC = () => {
                   <div>
                     <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Location</p>
                     <p className="text-black dark:text-white">
-                      {property.area}
+                      {property.area || 'N/A'}
                       {property.city && `, ${property.city}`}
                       {property.country && `, ${property.country}`}
                     </p>
                   </div>
-                  {((property as any).coordinates || (property as any).coordinates_text) && (
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Coordinates</p>
-                      <p className="text-black dark:text-white font-mono text-xs">{(property as any).coordinates || (property as any).coordinates_text}</p>
-                    </div>
-                  )}
-                  {property.website && (
-                    <div className="md:col-span-2">
-                      <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Website</p>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Coordinates</p>
+                    <p className="text-black dark:text-white font-mono text-xs">{(property as any).coordinates || (property as any).coordinates_text || 'N/A'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Website</p>
+                    {property.website ? (
                       <a 
                         href={property.website} 
                         target="_blank" 
@@ -2727,8 +2709,10 @@ const PropertyDetailsPage: React.FC = () => {
                       >
                         {property.website}
                       </a>
-                </div>
-                  )}
+                    ) : (
+                      <p className="text-black dark:text-white">N/A</p>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -2736,7 +2720,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Nearby Locations */}
-        {(mapPoints.length > 0 || editingSections.has('nearby') || true) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Nearby Locations"
@@ -2863,7 +2847,7 @@ const PropertyDetailsPage: React.FC = () => {
               ))}
             </div>
                 ) : (
-                  <p className="text-xs text-gray-500 dark:text-zinc-400">No locations added yet</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">N/A - No locations added yet</p>
                 )}
               </>
             )}
@@ -2871,7 +2855,7 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Payment Plans */}
-        {(paymentPlans.length > 0 || editingSections.has('payment_plans') || true) && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <SectionHeader
               title="Payment Plans"
@@ -3116,7 +3100,7 @@ const PropertyDetailsPage: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500 dark:text-zinc-400">No payment plans added yet</p>
+                  <p className="text-xs text-gray-500 dark:text-zinc-400">N/A - No payment plans added yet</p>
                 )}
               </>
             )}
@@ -3124,21 +3108,27 @@ const PropertyDetailsPage: React.FC = () => {
         )}
 
         {/* Developer Info */}
-        {developer && (
+        {(
           <div className="mb-8 bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-6">
             <h2 className="text-sm font-medium mb-4 text-black dark:text-white">Developer</h2>
             <div className="space-y-2 text-xs">
-              <p className="text-black dark:text-white font-medium">{developer.name}</p>
-              {developer.description && (
-                <p className="text-gray-600 dark:text-zinc-400">{developer.description}</p>
-              )}
-              {developer.email && (
-                <p className="text-gray-500 dark:text-zinc-500">Email: {developer.email}</p>
-              )}
-              {developer.website && (
-                <a href={developer.website} target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white">
-                  Visit Website →
-                </a>
+              {developer ? (
+                <>
+                  <p className="text-black dark:text-white font-medium">{developer.name}</p>
+                  {developer.description && (
+                    <p className="text-gray-600 dark:text-zinc-400">{developer.description}</p>
+                  )}
+                  {developer.email && (
+                    <p className="text-gray-500 dark:text-zinc-500">Email: {developer.email}</p>
+                  )}
+                  {developer.website && (
+                    <a href={developer.website} target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white">
+                      Visit Website →
+                    </a>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-zinc-400">N/A - No developer assigned</p>
               )}
             </div>
           </div>

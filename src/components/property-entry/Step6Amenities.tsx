@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useFormContext } from '../../context/FormContext';
 import { Building, Facility, MapPoint } from '../../types/property.types';
 import { inputClasses, labelClasses, sectionHeaderClasses, sectionTitleClasses, sectionDescClasses, cardClasses, addButtonClasses, removeButtonClasses } from './sharedStyles';
@@ -201,8 +201,31 @@ const Step6Amenities: React.FC = () => {
   };
 
   const removeMapPoint = (id: string) => {
-    updateFormData({ mapPoints: formData.mapPoints.filter((m) => m.id !== id) });
+    const updated = formData.mapPoints.filter((m) => m.id !== id);
+    updateFormData({ mapPoints: updated });
+    // If removing the last point and it's now empty, add a new empty one
+    // (since at least one point is mandatory)
+    if (updated.length === 0) {
+      const newMapPoint: MapPoint = {
+        id: Date.now().toString(),
+        poi_name: '',
+        distance_km: null,
+      };
+      updateFormData({ mapPoints: [newMapPoint] });
+    }
   };
+
+  // Automatically add an empty map point if the list is empty (since at least one is mandatory)
+  useEffect(() => {
+    if (formData.mapPoints.length === 0) {
+      const newMapPoint: MapPoint = {
+        id: Date.now().toString(),
+        poi_name: '',
+        distance_km: null,
+      };
+      updateFormData({ mapPoints: [newMapPoint] });
+    }
+  }, []); // Only run on mount
 
   return (
     <div className="space-y-8">
@@ -323,9 +346,9 @@ const Step6Amenities: React.FC = () => {
                   key={fac.id}
                   type="button"
                   onClick={() => addExistingFacility(fac)}
-                  className="flex justify-between items-center px-3 py-2 rounded border border-gray-200 dark:border-zinc-800 text-sm text-left hover:bg-gray-100 dark:hover:bg-zinc-900"
+                  className="flex justify-between items-center px-3 py-2 rounded border border-gray-200 dark:border-zinc-800 text-sm text-left text-black dark:text-white hover:bg-gray-100 dark:hover:bg-zinc-900"
                 >
-                  <span>{fac.name}</span>
+                  <span className="text-black dark:text-white">{fac.name}</span>
                   <span className="text-[11px] text-gray-500 dark:text-zinc-500">ID: {fac.id}</span>
                 </button>
               ))}
@@ -431,12 +454,15 @@ const Step6Amenities: React.FC = () => {
           <div key={point.id} className={cardClasses}>
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-sm font-semibold text-black dark:text-white">Location {index + 1}</h4>
-              <button
-                onClick={() => removeMapPoint(point.id)}
-                className={removeButtonClasses}
-              >
-                Remove
-              </button>
+              {/* Only show remove button if there's more than one point (since at least one is mandatory) */}
+              {formData.mapPoints.length > 1 && (
+                <button
+                  onClick={() => removeMapPoint(point.id)}
+                  className={removeButtonClasses}
+                >
+                  Remove
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
