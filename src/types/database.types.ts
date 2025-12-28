@@ -1,5 +1,13 @@
 // Database schema types based on Supabase tables
 
+export interface PropertyChangelogEntry {
+  date_and_time: string;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  metadata: string;
+}
+
 export interface Property {
   id: number;
   external_id: string;
@@ -34,6 +42,7 @@ export interface Property {
   layouts_pdf: string | null;
   parking_specs: string | null;
   overview: string | null;
+  changelog: PropertyChangelogEntry[] | null;
   created_at: string;
   updated_at: string | null;
 }

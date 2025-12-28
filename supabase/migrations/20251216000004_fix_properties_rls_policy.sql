@@ -28,3 +28,4 @@ USING (true);
 -- you can modify the USING clause. For example:
 -- USING (is_partner_project = true OR is_partner_project IS NULL)
 
+

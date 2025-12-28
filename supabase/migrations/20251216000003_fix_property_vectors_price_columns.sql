@@ -48,3 +48,4 @@ CREATE INDEX IF NOT EXISTS "idx_property_vectors_price_range"
   ON "public"."property_vectors" 
   USING btree (min_price, max_price);
 
+
