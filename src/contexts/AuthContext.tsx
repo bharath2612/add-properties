@@ -74,8 +74,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Check if still authenticated (not idle)
   const checkAuth = useCallback((): boolean => {
-    if (!isAuthenticated || !lastActivityTime) {
+    // If not authenticated, return false
+    if (!isAuthenticated) {
       return false;
+    }
+    
+    // If authenticated but lastActivityTime is not set yet (initial login),
+    // return true to allow operations
+    if (!lastActivityTime) {
+      return true;
     }
     
     const now = Date.now();

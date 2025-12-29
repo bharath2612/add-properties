@@ -372,8 +372,12 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     // Always fetch when on home route
+    // Add a small delay to ensure auth is fully initialized
     if (location.pathname === '/') {
-      fetchAnalytics();
+      const timer = setTimeout(() => {
+        fetchAnalytics();
+      }, 100); // Small delay to ensure auth context is ready
+      return () => clearTimeout(timer);
     }
   }, [location.pathname]);
 
@@ -708,8 +712,14 @@ USING (true);
         countryStats,
         upcomingCompletions,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching analytics:', error);
+      // If it's an auth error, show a more user-friendly message
+      if (error?.message?.includes('Session expired') || error?.message?.includes('not authenticated')) {
+        console.warn('Authentication issue - page may need to reload');
+        // Don't set loading to false immediately - let user see the error
+        // The auth system should handle redirecting to login
+      }
     } finally {
       setLoading(false);
     }

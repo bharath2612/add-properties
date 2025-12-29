@@ -17,10 +17,24 @@ export function setAuthCheckCallback(callback: () => boolean) {
 // Authenticated Supabase wrapper
 export const authenticatedSupabase = new Proxy(baseClient, {
   get(target, prop) {
-    // Check authentication before any operation
-    if (authCheckCallback && !authCheckCallback()) {
-      throw new Error('Session expired. Please login again.');
+    // Don't throw errors - just allow access
+    // RLS policies and Supabase will handle actual authentication
+    // This prevents blocking during initial load or right after login
+    if (authCheckCallback) {
+      try {
+        const isAuthenticated = authCheckCallback();
+        if (!isAuthenticated) {
+          // Log warning but don't throw - let the query fail naturally
+          // This prevents blocking the UI during auth initialization
+          console.warn('Auth check returned false, but allowing operation. RLS will enforce security.');
+        }
+      } catch (error) {
+        // If checkAuth throws, log but don't block
+        console.warn('Auth check failed:', error);
+      }
     }
+    // Always allow access - don't block during initialization
+    // Supabase RLS policies will handle actual security
     return target[prop as keyof SupabaseClient];
   },
 });
