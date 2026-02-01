@@ -11,6 +11,15 @@ import PropertiesPage from './components/dashboard/PropertiesPage';
 import DevelopersPage from './components/dashboard/DevelopersPage';
 import PropertyDetailsPage from './components/dashboard/PropertyDetailsPage';
 import PropertyEntryForm from './components/property-entry/PropertyEntryForm';
+import AnalyticsOverviewPage from './components/analytics/AnalyticsOverviewPage';
+import PropertyAnalyticsPage from './components/analytics/PropertyAnalyticsPage';
+import UserAnalyticsPage from './components/analytics/UserAnalyticsPage';
+import RealtimePage from './components/analytics/RealtimePage';
+// LASCO Pages
+import LascoErrorsPage from './components/lasco/ErrorsPage';
+import LascoErrorDetailPage from './components/lasco/ErrorDetailPage';
+import LascoFixesPage from './components/lasco/FixesPage';
+import LascoSettingsPage from './components/lasco/SettingsPage';
 import { setAuthCheckCallback } from './lib/supabaseAuth';
 import { useEffect } from 'react';
 
@@ -58,6 +67,18 @@ function App() {
                           </FormProvider>
                         }
                       />
+                      {/* Analytics Routes */}
+                      <Route path="analytics" element={<AnalyticsOverviewPage />} />
+                      <Route path="analytics/properties" element={<PropertyAnalyticsPage />} />
+                      <Route path="analytics/users" element={<UserAnalyticsPage />} />
+                      <Route path="analytics/realtime" element={<RealtimePage />} />
+                      {/* LASCO Routes */}
+                      <Route path="lasco" element={<LascoErrorsPage />} />
+                      <Route path="lasco/errors" element={<LascoErrorsPage />} />
+                      <Route path="lasco/errors/:id" element={<LascoErrorDetailPage />} />
+                      <Route path="lasco/fixes" element={<LascoFixesPage />} />
+                      <Route path="lasco/fixes/:id" element={<LascoFixesPage />} />
+                      <Route path="lasco/settings" element={<LascoSettingsPage />} />
                     </Route>
                   </Route>
                 </Routes>
