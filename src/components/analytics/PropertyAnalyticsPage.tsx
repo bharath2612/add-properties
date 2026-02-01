@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PropertyStats {
   id: number;
@@ -16,8 +16,6 @@ interface PropertyStats {
   uniqueVisitors: number;
   avgViewDuration: number;
 }
-
-const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
 
 const PropertyAnalyticsPage: React.FC = () => {
   const navigate = useNavigate();

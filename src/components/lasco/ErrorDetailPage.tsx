@@ -8,7 +8,7 @@ interface ErrorDetail {
   error_fingerprint: string;
   error_title: string;
   error_message: string | null;
-  stack_trace: unknown;
+  stack_trace: object | null;
   file_path: string | null;
   line_number: number | null;
   visitor_fingerprint: string | null;
@@ -16,7 +16,7 @@ interface ErrorDetail {
   status: string;
   priority: number;
   retry_count: number;
-  error_details: unknown;
+  error_details: object | null;
   created_at: string;
   processed_at: string | null;
 }
@@ -134,10 +134,6 @@ const ErrorDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
   };
 
   const formatTimeAgo = (dateString: string) => {

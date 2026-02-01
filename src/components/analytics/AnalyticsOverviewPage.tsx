@@ -61,7 +61,6 @@ const EVENT_LABELS: Record<string, string> = {
   search_query: 'Search',
 };
 
-const BAR_COLORS = ['#9ca3af', '#6b7280', '#4b5563', '#374151', '#1f2937'];
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a', '#18181b'];
 
 const AnalyticsOverviewPage: React.FC = () => {
