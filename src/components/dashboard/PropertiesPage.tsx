@@ -27,10 +27,14 @@ interface FilterOptions {
 
 const ITEMS_PER_PAGE = 10;
 
+// Status options for dropdown
+const STATUS_OPTIONS = ['active', 'hidden', 'pending', 'sold', 'archived'];
+
 const PropertiesPage: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     areas: [],
     statuses: [],
@@ -233,6 +237,38 @@ const PropertiesPage: React.FC = () => {
 
   const hasActiveFilters = searchTerm || statusFilter || areaFilter || developerFilter;
 
+  // Handle status change
+  const handleStatusChange = async (propertyId: number, newStatus: string) => {
+    try {
+      setUpdatingStatus(propertyId);
+
+      const { error } = await supabase
+        .from('properties')
+        .update({ status: newStatus })
+        .eq('id', propertyId);
+
+      if (error) throw error;
+
+      // Update local state
+      setProperties(prev =>
+        prev.map(p => p.id === propertyId ? { ...p, status: newStatus } : p)
+      );
+
+      // Refresh filter options if a new status was added
+      if (!filterOptions.statuses.includes(newStatus)) {
+        setFilterOptions(prev => ({
+          ...prev,
+          statuses: [...prev.statuses, newStatus].sort()
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header with Add Property Button */}
@@ -377,10 +413,32 @@ const PropertiesPage: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-zinc-800 text-gray-600 dark:text-zinc-400">
-                        {property.status || 'N/A'}
-                      </span>
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={property.status || ''}
+                        onChange={(e) => handleStatusChange(property.id, e.target.value)}
+                        disabled={updatingStatus === property.id}
+                        className={`px-2 py-1 text-xs rounded border transition-colors cursor-pointer ${
+                          property.status === 'hidden'
+                            ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400'
+                            : property.status === 'active'
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-green-700 dark:text-green-400'
+                            : 'bg-white dark:bg-black border-gray-300 dark:border-zinc-800 text-gray-600 dark:text-zinc-400'
+                        } focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-zinc-600 ${
+                          updatingStatus === property.id ? 'opacity-50' : ''
+                        }`}
+                      >
+                        <option value="">Select status</option>
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                        {/* Show current status if not in predefined list */}
+                        {property.status && !STATUS_OPTIONS.includes(property.status) && (
+                          <option value={property.status}>{property.status}</option>
+                        )}
+                      </select>
                     </td>
                     <td className="py-3 px-4 text-xs text-gray-500 dark:text-zinc-500">{formatDate(property.created_at || '')}</td>
                     <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
