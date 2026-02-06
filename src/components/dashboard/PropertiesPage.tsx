@@ -27,19 +27,8 @@ interface FilterOptions {
 
 const ITEMS_PER_PAGE = 10;
 
-// Status options for dropdown (real property statuses + hidden for admin)
-const STATUS_OPTIONS = [
-  'off-plan',
-  'under construction',
-  'launch',
-  'proposed',
-  'ready',
-  'completed',
-  'built',
-  'delivered',
-  'selling',
-  'hidden',  // Admin-only: hides from frontend
-];
+// Admin-only status for hiding properties from frontend
+const HIDDEN_STATUS = 'hidden';
 
 const PropertiesPage: React.FC = () => {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -430,27 +419,39 @@ const PropertiesPage: React.FC = () => {
                         onChange={(e) => handleStatusChange(property.id, e.target.value)}
                         disabled={updatingStatus === property.id}
                         className={`px-2 py-1 text-xs rounded border transition-colors cursor-pointer ${
-                          property.status === 'hidden'
-                            ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400'
-                            : property.status === 'ready' || property.status === 'completed' || property.status === 'built' || property.status === 'delivered'
-                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-green-700 dark:text-green-400'
-                            : property.status === 'off-plan' || property.status === 'launch' || property.status === 'proposed'
-                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-400'
-                            : property.status === 'under construction' || property.status === 'selling'
-                            ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400'
-                            : 'bg-white dark:bg-black border-gray-300 dark:border-zinc-800 text-gray-600 dark:text-zinc-400'
+                          (() => {
+                            const s = (property.status || '').toLowerCase();
+                            if (s === HIDDEN_STATUS)
+                              return 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400';
+                            if (s.includes('ready') || s.includes('completed') || s.includes('built') || s.includes('delivered'))
+                              return 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800 text-green-700 dark:text-green-400';
+                            if (s.includes('off-plan') || s.includes('launch') || s.includes('proposed'))
+                              return 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-400';
+                            if (s.includes('construction') || s.includes('selling'))
+                              return 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400';
+                            return 'bg-white dark:bg-black border-gray-300 dark:border-zinc-800 text-gray-600 dark:text-zinc-400';
+                          })()
                         } focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-zinc-600 ${
                           updatingStatus === property.id ? 'opacity-50' : ''
                         }`}
                       >
                         <option value="">Select status</option>
-                        {STATUS_OPTIONS.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                        {/* Show current status if not in predefined list */}
-                        {property.status && !STATUS_OPTIONS.includes(property.status) && (
+                        {/* Show all actual statuses from database */}
+                        {filterOptions.statuses
+                          .filter(s => s !== HIDDEN_STATUS)
+                          .map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        {/* Always show hidden option */}
+                        <option value={HIDDEN_STATUS} className="text-red-600">
+                          🚫 {HIDDEN_STATUS} (hide from site)
+                        </option>
+                        {/* Show current status if not in list */}
+                        {property.status &&
+                         property.status !== HIDDEN_STATUS &&
+                         !filterOptions.statuses.includes(property.status) && (
                           <option value={property.status}>{property.status}</option>
                         )}
                       </select>
