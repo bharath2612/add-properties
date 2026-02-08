@@ -15,6 +15,7 @@ import AnalyticsOverviewPage from './components/analytics/AnalyticsOverviewPage'
 import PropertyAnalyticsPage from './components/analytics/PropertyAnalyticsPage';
 import UserAnalyticsPage from './components/analytics/UserAnalyticsPage';
 import RealtimePage from './components/analytics/RealtimePage';
+import SearchAnalyticsPage from './components/analytics/SearchAnalyticsPage';
 // LASCO Pages
 import LascoErrorsPage from './components/lasco/ErrorsPage';
 import LascoErrorDetailPage from './components/lasco/ErrorDetailPage';
@@ -71,6 +72,7 @@ function App() {
                       <Route path="analytics" element={<AnalyticsOverviewPage />} />
                       <Route path="analytics/properties" element={<PropertyAnalyticsPage />} />
                       <Route path="analytics/users" element={<UserAnalyticsPage />} />
+                      <Route path="analytics/search" element={<SearchAnalyticsPage />} />
                       <Route path="analytics/realtime" element={<RealtimePage />} />
                       {/* LASCO Routes */}
                       <Route path="lasco" element={<LascoErrorsPage />} />

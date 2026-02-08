@@ -39,6 +39,13 @@ interface RecentEvent {
   isLoggedIn: boolean;
 }
 
+interface FunnelStep {
+  name: string;
+  value: number;
+  percentage: number;
+  conversionRate: string;
+}
+
 const EVENT_COLORS: Record<string, string> = {
   property_card_click: '#3b82f6',
   property_view_details: '#10b981',
@@ -79,6 +86,7 @@ const AnalyticsOverviewPage: React.FC = () => {
   const [topProperties, setTopProperties] = useState<TopProperty[]>([]);
   const [eventDistribution, setEventDistribution] = useState<{ name: string; value: number }[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
+  const [funnelData, setFunnelData] = useState<FunnelStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'today' | '7days' | '30days'>('7days');
 
@@ -213,11 +221,12 @@ const AnalyticsOverviewPage: React.FC = () => {
       setEventDistribution(eventDistributionData);
       setRecentEvents(mappedEvents);
 
-      // Fetch top properties
-      await fetchTopProperties(dateFilter);
-
-      // Fetch daily trends
-      await fetchDailyTrends(dateFilter);
+      // Fetch top properties, daily trends, and funnel data
+      await Promise.all([
+        fetchTopProperties(dateFilter),
+        fetchDailyTrends(dateFilter),
+        fetchFunnelData(dateFilter),
+      ]);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -327,6 +336,56 @@ const AnalyticsOverviewPage: React.FC = () => {
     }
   };
 
+  const fetchFunnelData = async (dateFilter: string) => {
+    try {
+      const funnelSteps = [
+        { key: 'session_start', label: 'Sessions' },
+        { key: 'page_view', label: 'Page Views' },
+        { key: 'property_card_click', label: 'Card Clicks' },
+        { key: 'property_view_details', label: 'View Details' },
+        { key: 'property_save', label: 'Saves' },
+        { key: 'property_share', label: 'Shares' },
+      ];
+
+      const { data, error } = await supabase
+        .from('user_activity_events')
+        .select('event_type')
+        .gte('created_at', dateFilter)
+        .in('event_type', funnelSteps.map(s => s.key));
+
+      if (error) throw error;
+
+      // Count events by type
+      const counts: Record<string, number> = {};
+      funnelSteps.forEach(step => counts[step.key] = 0);
+      (data || []).forEach((event: any) => {
+        if (counts[event.event_type] !== undefined) {
+          counts[event.event_type]++;
+        }
+      });
+
+      // Calculate funnel metrics
+      const maxValue = Math.max(...Object.values(counts), 1);
+      const funnelResults: FunnelStep[] = funnelSteps.map((step, index) => {
+        const value = counts[step.key];
+        const percentage = (value / maxValue) * 100;
+        const prevValue = index > 0 ? counts[funnelSteps[index - 1].key] : value;
+        const conversionRate = prevValue > 0 ? ((value / prevValue) * 100).toFixed(1) : '0';
+
+        return {
+          name: step.label,
+          value,
+          percentage,
+          conversionRate: index === 0 ? '100' : conversionRate,
+        };
+      });
+
+      setFunnelData(funnelResults);
+    } catch (error) {
+      console.error('Error fetching funnel data:', error);
+    }
+  };
+
   const formatTimeAgo = (dateString: string) => {
     const seconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
     if (seconds < 60) return `${seconds}s ago`;
@@ -368,6 +427,34 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Quick Links */}
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to="/analytics/search"
+          className="px-3 py-1.5 text-xs rounded bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors"
+        >
+          🔍 Search Analytics
+        </Link>
+        <Link
+          to="/analytics/properties"
+          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+        >
+          Properties
+        </Link>
+        <Link
+          to="/analytics/users"
+          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+        >
+          Users
+        </Link>
+        <Link
+          to="/analytics/realtime"
+          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+        >
+          Realtime
+        </Link>
+      </div>
+
       {/* Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
@@ -393,6 +480,58 @@ const AnalyticsOverviewPage: React.FC = () => {
         <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
           <p className="text-xs text-gray-500 dark:text-zinc-500 mb-1">Active Today</p>
           <p className="text-2xl font-medium text-green-600 dark:text-green-400">{stats.activeUsersToday}</p>
+        </div>
+      </div>
+
+      {/* Conversion Funnel */}
+      <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-black dark:text-white mb-4">Conversion Funnel</h3>
+        <div className="space-y-3">
+          {funnelData.length > 0 ? (
+            funnelData.map((step, index) => (
+              <div key={step.name} className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-black dark:text-white">{step.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-zinc-500">({step.value.toLocaleString()})</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {index > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        parseFloat(step.conversionRate) >= 50
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                          : parseFloat(step.conversionRate) >= 20
+                          ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      }`}>
+                        {step.conversionRate}% from prev
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="h-6 bg-gray-200 dark:bg-zinc-800 rounded overflow-hidden">
+                  <div
+                    className="h-full transition-all duration-500 ease-out rounded"
+                    style={{
+                      width: `${step.percentage}%`,
+                      backgroundColor: [
+                        '#6366f1', // indigo - sessions
+                        '#8b5cf6', // purple - page views
+                        '#3b82f6', // blue - card clicks
+                        '#10b981', // green - view details
+                        '#ef4444', // red - saves
+                        '#ec4899', // pink - shares
+                      ][index] || '#6b7280',
+                    }}
+                  />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex items-center justify-center h-32 text-gray-500 dark:text-zinc-500 text-sm">
+              No funnel data yet
+            </div>
+          )}
         </div>
       </div>
 
