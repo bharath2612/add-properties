@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import FunnelChart, { FunnelStep } from './funnels/FunnelChart';
+import JourneyExplorer from './journey/JourneyExplorer';
 
 interface OverviewStats {
   totalVisitors: number;
@@ -39,12 +41,7 @@ interface RecentEvent {
   isLoggedIn: boolean;
 }
 
-interface FunnelStep {
-  name: string;
-  value: number;
-  percentage: number;
-  conversionRate: string;
-}
+// FunnelStep is now imported from ./funnels/FunnelChart
 
 const EVENT_COLORS: Record<string, string> = {
   property_card_click: '#3b82f6',
@@ -86,7 +83,10 @@ const AnalyticsOverviewPage: React.FC = () => {
   const [topProperties, setTopProperties] = useState<TopProperty[]>([]);
   const [eventDistribution, setEventDistribution] = useState<{ name: string; value: number }[]>([]);
   const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
-  const [funnelData, setFunnelData] = useState<FunnelStep[]>([]);
+  const [fullConversionFunnel, setFullConversionFunnel] = useState<FunnelStep[]>([]);
+  const [propertyFunnel, setPropertyFunnel] = useState<FunnelStep[]>([]);
+  const [authFunnel, setAuthFunnel] = useState<FunnelStep[]>([]);
+  const [funnelLoading, setFunnelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'today' | '7days' | '30days'>('7days');
 
@@ -225,7 +225,7 @@ const AnalyticsOverviewPage: React.FC = () => {
       await Promise.all([
         fetchTopProperties(dateFilter),
         fetchDailyTrends(dateFilter),
-        fetchFunnelData(dateFilter),
+        fetchFunnels(dateFilter),
       ]);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -336,53 +336,136 @@ const AnalyticsOverviewPage: React.FC = () => {
     }
   };
 
-  const fetchFunnelData = async (dateFilter: string) => {
+  const fetchFunnels = async (dateFilter: string) => {
+    setFunnelLoading(true);
     try {
-      const funnelSteps = [
-        { key: 'session_start', label: 'Sessions' },
-        { key: 'page_view', label: 'Page Views' },
-        { key: 'property_card_click', label: 'Card Clicks' },
-        { key: 'property_view_details', label: 'View Details' },
-        { key: 'property_save', label: 'Saves' },
-        { key: 'property_share', label: 'Shares' },
-      ];
-
-      const { data, error } = await supabase
-        .from('user_activity_events')
-        .select('event_type')
-        .gte('created_at', dateFilter)
-        .in('event_type', funnelSteps.map(s => s.key));
-
-      if (error) throw error;
-
-      // Count events by type
-      const counts: Record<string, number> = {};
-      funnelSteps.forEach(step => counts[step.key] = 0);
-      (data || []).forEach((event: any) => {
-        if (counts[event.event_type] !== undefined) {
-          counts[event.event_type]++;
-        }
-      });
-
-      // Calculate funnel metrics
-      const maxValue = Math.max(...Object.values(counts), 1);
-      const funnelResults: FunnelStep[] = funnelSteps.map((step, index) => {
-        const value = counts[step.key];
-        const percentage = (value / maxValue) * 100;
-        const prevValue = index > 0 ? counts[funnelSteps[index - 1].key] : value;
-        const conversionRate = prevValue > 0 ? ((value / prevValue) * 100).toFixed(1) : '0';
-
-        return {
-          name: step.label,
-          value,
-          percentage,
-          conversionRate: index === 0 ? '100' : conversionRate,
-        };
-      });
-
-      setFunnelData(funnelResults);
+      // Fetch all three funnels in parallel
+      await Promise.all([
+        fetchFullConversionFunnelData(dateFilter),
+        fetchPropertyFunnelData(dateFilter),
+        fetchAuthFunnelData(dateFilter),
+      ]);
     } catch (error) {
-      console.error('Error fetching funnel data:', error);
+      console.error('Error fetching funnels:', error);
+    } finally {
+      setFunnelLoading(false);
+    }
+  };
+
+  const fetchFullConversionFunnelData = async (dateFilter: string) => {
+    try {
+      // 1. Total visitors in period
+      const { count: totalVisitors } = await supabase
+        .from('visitor_fingerprints')
+        .select('id', { count: 'exact', head: true })
+        .gte('last_seen_at', dateFilter);
+
+      // 2. Visitors who searched (deduplicated)
+      const { data: searchVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'search_query')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const searchedCount = new Set(searchVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      // 3. Visitors who signed up (have linked_user_id)
+      const { count: signedUp } = await supabase
+        .from('visitor_fingerprints')
+        .select('id', { count: 'exact', head: true })
+        .gte('last_seen_at', dateFilter)
+        .not('linked_user_id', 'is', null);
+
+      // 4. Visitors who viewed property details (deduplicated)
+      const { data: viewVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'property_view_details')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const viewedCount = new Set(viewVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      // 5. Visitors who saved (deduplicated)
+      const { data: saveVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'property_save')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const savedCount = new Set(saveVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      setFullConversionFunnel([
+        { name: 'All Visitors', value: totalVisitors || 0, color: '#6366f1' },
+        { name: 'Searched', value: searchedCount, color: '#ec4899' },
+        { name: 'Signed Up', value: signedUp || 0, color: '#10b981' },
+        { name: 'Viewed Property', value: viewedCount, color: '#3b82f6' },
+        { name: 'Saved', value: savedCount, color: '#ef4444' },
+      ]);
+    } catch (error) {
+      console.error('Error fetching full conversion funnel:', error);
+    }
+  };
+
+  const fetchPropertyFunnelData = async (dateFilter: string) => {
+    try {
+      // Sessions with property card clicks (deduplicated by session)
+      const { data: cardClickSessions } = await supabase
+        .from('user_activity_events')
+        .select('session_id')
+        .eq('event_type', 'property_card_click')
+        .gte('created_at', dateFilter)
+        .not('session_id', 'is', null);
+      const cardClickCount = new Set(cardClickSessions?.map((e) => e.session_id)).size;
+
+      // Sessions with property detail views
+      const { data: detailSessions } = await supabase
+        .from('user_activity_events')
+        .select('session_id')
+        .eq('event_type', 'property_view_details')
+        .gte('created_at', dateFilter)
+        .not('session_id', 'is', null);
+      const detailCount = new Set(detailSessions?.map((e) => e.session_id)).size;
+
+      // Sessions with saves or shares
+      const { data: saveSessions } = await supabase
+        .from('user_activity_events')
+        .select('session_id')
+        .in('event_type', ['property_save', 'property_share'])
+        .gte('created_at', dateFilter)
+        .not('session_id', 'is', null);
+      const saveCount = new Set(saveSessions?.map((e) => e.session_id)).size;
+
+      setPropertyFunnel([
+        { name: 'Card Clicks', value: cardClickCount, color: '#3b82f6' },
+        { name: 'View Details', value: detailCount, color: '#10b981' },
+        { name: 'Save/Share', value: saveCount, color: '#ef4444' },
+      ]);
+    } catch (error) {
+      console.error('Error fetching property funnel:', error);
+    }
+  };
+
+  const fetchAuthFunnelData = async (dateFilter: string) => {
+    try {
+      // All visitors
+      const { count: allVisitors } = await supabase
+        .from('visitor_fingerprints')
+        .select('id', { count: 'exact', head: true })
+        .gte('last_seen_at', dateFilter);
+
+      // Authenticated visitors
+      const { count: authenticatedUsers } = await supabase
+        .from('visitor_fingerprints')
+        .select('id', { count: 'exact', head: true })
+        .gte('last_seen_at', dateFilter)
+        .not('linked_user_id', 'is', null);
+
+      setAuthFunnel([
+        { name: 'Anonymous Visitors', value: allVisitors || 0, color: '#6b7280' },
+        { name: 'Authenticated Users', value: authenticatedUsers || 0, color: '#10b981' },
+      ]);
+    } catch (error) {
+      console.error('Error fetching auth funnel:', error);
     }
   };
 
@@ -483,57 +566,27 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Conversion Funnel */}
-      <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-black dark:text-white mb-4">Conversion Funnel</h3>
-        <div className="space-y-3">
-          {funnelData.length > 0 ? (
-            funnelData.map((step, index) => (
-              <div key={step.name} className="relative">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-black dark:text-white">{step.name}</span>
-                    <span className="text-xs text-gray-500 dark:text-zinc-500">({step.value.toLocaleString()})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {index > 0 && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                        parseFloat(step.conversionRate) >= 50
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                          : parseFloat(step.conversionRate) >= 20
-                          ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400'
-                          : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                      }`}>
-                        {step.conversionRate}% from prev
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="h-6 bg-gray-200 dark:bg-zinc-800 rounded overflow-hidden">
-                  <div
-                    className="h-full transition-all duration-500 ease-out rounded"
-                    style={{
-                      width: `${step.percentage}%`,
-                      backgroundColor: [
-                        '#6366f1', // indigo - sessions
-                        '#8b5cf6', // purple - page views
-                        '#3b82f6', // blue - card clicks
-                        '#10b981', // green - view details
-                        '#ef4444', // red - saves
-                        '#ec4899', // pink - shares
-                      ][index] || '#6b7280',
-                    }}
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center justify-center h-32 text-gray-500 dark:text-zinc-500 text-sm">
-              No funnel data yet
-            </div>
-          )}
-        </div>
+      {/* Conversion Funnels - 3 Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <FunnelChart
+          title="Full Conversion Funnel"
+          data={fullConversionFunnel}
+          loading={funnelLoading}
+        />
+        <FunnelChart
+          title="Property Engagement"
+          data={propertyFunnel}
+          loading={funnelLoading}
+        />
+        <FunnelChart
+          title="Auth Journey"
+          data={authFunnel}
+          loading={funnelLoading}
+        />
       </div>
+
+      {/* Journey Explorer */}
+      <JourneyExplorer dateFilter={getDateFilter()} />
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
