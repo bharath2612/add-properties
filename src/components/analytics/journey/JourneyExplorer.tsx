@@ -39,6 +39,26 @@ const JourneyExplorer: React.FC<JourneyExplorerProps> = ({ dateFilter }) => {
 
       const visitorIds = visitorData.map((v) => v.id);
 
+      // Fetch user names for authenticated visitors
+      const linkedUserIds = visitorData
+        .filter((v) => v.linked_user_id)
+        .map((v) => v.linked_user_id);
+
+      let userNameMap: Record<string, string> = {};
+      if (linkedUserIds.length > 0) {
+        const { data: accounts } = await supabase
+          .from('accounts')
+          .select('user_id, first_name, last_name')
+          .in('user_id', linkedUserIds);
+
+        if (accounts) {
+          accounts.forEach((a: { user_id: string; first_name: string | null; last_name: string | null }) => {
+            const name = [a.first_name, a.last_name].filter(Boolean).join(' ');
+            if (name) userNameMap[a.user_id] = name;
+          });
+        }
+      }
+
       // Get event counts for each visitor
       const { data: eventCounts } = await supabase
         .from('user_activity_events')
@@ -61,6 +81,7 @@ const JourneyExplorer: React.FC<JourneyExplorerProps> = ({ dateFilter }) => {
       const mappedVisitors: VisitorSummary[] = visitorData.map((v) => ({
         visitorId: v.id,
         fingerprintHash: v.fingerprint_hash?.substring(0, 8) + '...' || 'Unknown',
+        userName: v.linked_user_id ? userNameMap[v.linked_user_id] || undefined : undefined,
         firstSeen: v.first_seen_at,
         lastSeen: v.last_seen_at,
         isAuthenticated: !!v.linked_user_id,
@@ -86,7 +107,7 @@ const JourneyExplorer: React.FC<JourneyExplorerProps> = ({ dateFilter }) => {
         .from('user_activity_events')
         .select('id, event_type, property_id, created_at, source_page, metadata')
         .eq('visitor_fingerprint_id', visitorId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       if (!events || events.length === 0) {

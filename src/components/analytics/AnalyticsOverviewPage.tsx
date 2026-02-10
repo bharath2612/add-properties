@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import FunnelChart, { FunnelStep } from './funnels/FunnelChart';
 import JourneyExplorer from './journey/JourneyExplorer';
 import AnalyticsTabs from './AnalyticsTabs';
@@ -14,8 +13,6 @@ interface OverviewStats {
   totalSaves: number;
   totalShares: number;
   activeUsersToday: number;
-  anonymousVisitors: number;
-  loggedInUsers: number;
 }
 
 interface DailyTrend {
@@ -25,35 +22,7 @@ interface DailyTrend {
   saves: number;
 }
 
-interface TopProperty {
-  propertyId: number;
-  propertyName: string;
-  views: number;
-  clicks: number;
-  saves: number;
-}
-
-interface RecentEvent {
-  id: number;
-  eventType: string;
-  propertyId: number | null;
-  createdAt: string;
-  deviceType: string;
-  isLoggedIn: boolean;
-}
-
 // FunnelStep is now imported from ./funnels/FunnelChart
-
-const EVENT_COLORS: Record<string, string> = {
-  property_card_click: '#3b82f6',
-  property_view_details: '#10b981',
-  property_map_marker_click: '#f59e0b',
-  property_save: '#ef4444',
-  property_unsave: '#6b7280',
-  property_share: '#8b5cf6',
-  page_view: '#6366f1',
-  search_query: '#ec4899',
-};
 
 const EVENT_LABELS: Record<string, string> = {
   property_card_click: 'Card Click',
@@ -77,15 +46,10 @@ const AnalyticsOverviewPage: React.FC = () => {
     totalSaves: 0,
     totalShares: 0,
     activeUsersToday: 0,
-    anonymousVisitors: 0,
-    loggedInUsers: 0,
   });
   const [dailyTrends, setDailyTrends] = useState<DailyTrend[]>([]);
-  const [topProperties, setTopProperties] = useState<TopProperty[]>([]);
   const [eventDistribution, setEventDistribution] = useState<{ name: string; value: number }[]>([]);
-  const [recentEvents, setRecentEvents] = useState<RecentEvent[]>([]);
   const [fullConversionFunnel, setFullConversionFunnel] = useState<FunnelStep[]>([]);
-  const [propertyFunnel, setPropertyFunnel] = useState<FunnelStep[]>([]);
   const [authFunnel, setAuthFunnel] = useState<FunnelStep[]>([]);
   const [funnelLoading, setFunnelLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -122,7 +86,6 @@ const AnalyticsOverviewPage: React.FC = () => {
         sharesResult,
         todayActiveResult,
         eventTypesResult,
-        recentEventsResult,
       ] = await Promise.all([
         // Total unique visitors
         supabase
@@ -174,18 +137,7 @@ const AnalyticsOverviewPage: React.FC = () => {
           .from('user_activity_events')
           .select('event_type')
           .gte('created_at', dateFilter),
-
-        // Recent events
-        supabase
-          .from('user_activity_events')
-          .select('id, event_type, property_id, created_at, device_type, user_id')
-          .order('created_at', { ascending: false })
-          .limit(20),
       ]);
-
-      // Count logged in vs anonymous
-      const loggedInCount = (recentEventsResult.data || []).filter(e => e.user_id).length;
-      const anonymousCount = (recentEventsResult.data || []).length - loggedInCount;
 
       // Process event type distribution
       const eventCounts: Record<string, number> = {};
@@ -197,16 +149,6 @@ const AnalyticsOverviewPage: React.FC = () => {
         .map(([name, value]) => ({ name: EVENT_LABELS[name] || name, value }))
         .sort((a, b) => b.value - a.value);
 
-      // Map recent events
-      const mappedEvents = (recentEventsResult.data || []).map((e: any) => ({
-        id: e.id,
-        eventType: e.event_type,
-        propertyId: e.property_id,
-        createdAt: e.created_at,
-        deviceType: e.device_type || 'unknown',
-        isLoggedIn: !!e.user_id,
-      }));
-
       setStats({
         totalVisitors: visitorsResult.count || 0,
         totalSessions: sessionsResult.count || 0,
@@ -215,16 +157,12 @@ const AnalyticsOverviewPage: React.FC = () => {
         totalSaves: savesResult.count || 0,
         totalShares: sharesResult.count || 0,
         activeUsersToday: todayActiveResult.count || 0,
-        anonymousVisitors: anonymousCount,
-        loggedInUsers: loggedInCount,
       });
 
       setEventDistribution(eventDistributionData);
-      setRecentEvents(mappedEvents);
 
-      // Fetch top properties, daily trends, and funnel data
+      // Fetch daily trends and funnel data
       await Promise.all([
-        fetchTopProperties(dateFilter),
         fetchDailyTrends(dateFilter),
         fetchFunnels(dateFilter),
       ]);
@@ -232,67 +170,6 @@ const AnalyticsOverviewPage: React.FC = () => {
       console.error('Error fetching analytics:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchTopProperties = async (dateFilter: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_activity_events')
-        .select('property_id, event_type')
-        .gte('created_at', dateFilter)
-        .not('property_id', 'is', null);
-
-      if (error) throw error;
-
-      // Aggregate by property
-      const propertyStats: Record<number, { views: number; clicks: number; saves: number }> = {};
-      (data || []).forEach((event: any) => {
-        if (!propertyStats[event.property_id]) {
-          propertyStats[event.property_id] = { views: 0, clicks: 0, saves: 0 };
-        }
-        if (event.event_type === 'property_view_details') {
-          propertyStats[event.property_id].views++;
-        }
-        if (event.event_type === 'property_card_click') {
-          propertyStats[event.property_id].clicks++;
-        }
-        if (event.event_type === 'property_save') {
-          propertyStats[event.property_id].saves++;
-        }
-      });
-
-      // Get top 5 by total interactions
-      const sortedProperties = Object.entries(propertyStats)
-        .map(([id, stats]) => ({
-          propertyId: parseInt(id),
-          propertyName: `Property #${id}`,
-          ...stats,
-        }))
-        .sort((a, b) => (b.views + b.clicks + b.saves) - (a.views + a.clicks + a.saves))
-        .slice(0, 5);
-
-      // Fetch property names
-      if (sortedProperties.length > 0) {
-        const { data: properties } = await supabase
-          .from('properties')
-          .select('id, name')
-          .in('id', sortedProperties.map(p => p.propertyId));
-
-        if (properties) {
-          const nameMap: Record<number, string> = {};
-          properties.forEach((p: any) => {
-            nameMap[p.id] = p.name;
-          });
-          sortedProperties.forEach(p => {
-            p.propertyName = nameMap[p.propertyId] || `Property #${p.propertyId}`;
-          });
-        }
-      }
-
-      setTopProperties(sortedProperties);
-    } catch (error) {
-      console.error('Error fetching top properties:', error);
     }
   };
 
@@ -340,10 +217,9 @@ const AnalyticsOverviewPage: React.FC = () => {
   const fetchFunnels = async (dateFilter: string) => {
     setFunnelLoading(true);
     try {
-      // Fetch all three funnels in parallel
+      // Fetch funnels in parallel
       await Promise.all([
         fetchFullConversionFunnelData(dateFilter),
-        fetchPropertyFunnelData(dateFilter),
         fetchAuthFunnelData(dateFilter),
       ]);
     } catch (error) {
@@ -407,45 +283,6 @@ const AnalyticsOverviewPage: React.FC = () => {
     }
   };
 
-  const fetchPropertyFunnelData = async (dateFilter: string) => {
-    try {
-      // Sessions with property card clicks (deduplicated by session)
-      const { data: cardClickSessions } = await supabase
-        .from('user_activity_events')
-        .select('session_id')
-        .eq('event_type', 'property_card_click')
-        .gte('created_at', dateFilter)
-        .not('session_id', 'is', null);
-      const cardClickCount = new Set(cardClickSessions?.map((e) => e.session_id)).size;
-
-      // Sessions with property detail views
-      const { data: detailSessions } = await supabase
-        .from('user_activity_events')
-        .select('session_id')
-        .eq('event_type', 'property_view_details')
-        .gte('created_at', dateFilter)
-        .not('session_id', 'is', null);
-      const detailCount = new Set(detailSessions?.map((e) => e.session_id)).size;
-
-      // Sessions with saves or shares
-      const { data: saveSessions } = await supabase
-        .from('user_activity_events')
-        .select('session_id')
-        .in('event_type', ['property_save', 'property_share'])
-        .gte('created_at', dateFilter)
-        .not('session_id', 'is', null);
-      const saveCount = new Set(saveSessions?.map((e) => e.session_id)).size;
-
-      setPropertyFunnel([
-        { name: 'Card Clicks', value: cardClickCount, color: '#3b82f6' },
-        { name: 'View Details', value: detailCount, color: '#10b981' },
-        { name: 'Save/Share', value: saveCount, color: '#ef4444' },
-      ]);
-    } catch (error) {
-      console.error('Error fetching property funnel:', error);
-    }
-  };
-
   const fetchAuthFunnelData = async (dateFilter: string) => {
     try {
       // All visitors
@@ -468,14 +305,6 @@ const AnalyticsOverviewPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching auth funnel:', error);
     }
-  };
-
-  const formatTimeAgo = (dateString: string) => {
-    const seconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
   };
 
   if (loading) {
@@ -541,20 +370,13 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Conversion Funnels - 2 Column Grid */}
+      {/* Conversion Funnels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelChart
           title="Full Conversion Funnel"
           data={fullConversionFunnel}
           loading={funnelLoading}
         />
-        <FunnelChart
-          title="Property Engagement"
-          data={propertyFunnel}
-          loading={funnelLoading}
-        />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelChart
           title="Auth Journey"
           data={authFunnel}
@@ -669,111 +491,6 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top Properties */}
-        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-black dark:text-white">Top Properties</h3>
-            <Link
-              to="/analytics/properties"
-              className="text-xs text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
-            >
-              View All →
-            </Link>
-          </div>
-          <div className="h-[280px]">
-            {topProperties.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topProperties}
-                  layout="vertical"
-                  margin={{ top: 5, right: 10, bottom: 5, left: 100 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:stroke-zinc-800" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }} />
-                  <YAxis
-                    type="category"
-                    dataKey="propertyName"
-                    tick={{ fontSize: 10, fill: '#6b7280' }}
-                    width={95}
-                    tickFormatter={(value) => value.length > 15 ? value.substring(0, 15) + '...' : value}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Bar dataKey="views" fill="#10b981" name="Views" stackId="a" />
-                  <Bar dataKey="clicks" fill="#3b82f6" name="Clicks" stackId="a" />
-                  <Bar dataKey="saves" fill="#ef4444" name="Saves" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
-                No property activity yet
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-black dark:text-white">Recent Activity</h3>
-            <Link
-              to="/analytics/realtime"
-              className="text-xs text-gray-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors"
-            >
-              View Live →
-            </Link>
-          </div>
-          <div className="h-[280px] overflow-y-auto space-y-2">
-            {recentEvents.length > 0 ? (
-              recentEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="flex items-center justify-between p-2 bg-white dark:bg-zinc-900 rounded border border-gray-200 dark:border-zinc-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: EVENT_COLORS[event.eventType] || '#6b7280' }}
-                    />
-                    <div>
-                      <p className="text-xs font-medium text-black dark:text-white">
-                        {EVENT_LABELS[event.eventType] || event.eventType}
-                      </p>
-                      <p className="text-[10px] text-gray-500 dark:text-zinc-500">
-                        {event.propertyId ? `Property #${event.propertyId}` : 'General'} • {event.deviceType}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      event.isLoggedIn
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400'
-                    }`}>
-                      {event.isLoggedIn ? 'User' : 'Visitor'}
-                    </span>
-                    <span className="text-[10px] text-gray-400 dark:text-zinc-600">
-                      {formatTimeAgo(event.createdAt)}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
-                No recent activity
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

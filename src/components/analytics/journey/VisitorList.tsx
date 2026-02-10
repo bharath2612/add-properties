@@ -3,6 +3,7 @@ import React from 'react';
 export interface VisitorSummary {
   visitorId: string;
   fingerprintHash: string;
+  userName?: string;
   firstSeen: string;
   lastSeen: string;
   isAuthenticated: boolean;
@@ -70,8 +71,8 @@ const VisitorList: React.FC<VisitorListProps> = ({
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <span className="text-sm">{getDeviceIcon(visitor.platform)}</span>
-              <span className="text-xs font-mono text-black dark:text-white">
-                {visitor.fingerprintHash}
+              <span className={`text-xs text-black dark:text-white ${visitor.userName ? 'font-medium' : 'font-mono'}`}>
+                {visitor.userName || visitor.fingerprintHash}
               </span>
             </div>
             {visitor.isAuthenticated && (
