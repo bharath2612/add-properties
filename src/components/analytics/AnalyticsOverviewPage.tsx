@@ -566,8 +566,8 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Conversion Funnels - 3 Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Conversion Funnels - 2 Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelChart
           title="Full Conversion Funnel"
           data={fullConversionFunnel}
@@ -578,6 +578,8 @@ const AnalyticsOverviewPage: React.FC = () => {
           data={propertyFunnel}
           loading={funnelLoading}
         />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FunnelChart
           title="Auth Journey"
           data={authFunnel}
@@ -626,33 +628,63 @@ const AnalyticsOverviewPage: React.FC = () => {
           <h3 className="text-sm font-medium text-black dark:text-white mb-4">Event Distribution</h3>
           <div className="h-[280px]">
             {eventDistribution.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={eventDistribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {eventDistribution.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#18181b',
-                      border: '1px solid #27272a',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      color: '#fff',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="flex items-center h-full gap-4">
+                {/* Donut chart */}
+                <div className="flex-shrink-0 w-[180px] h-[180px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={eventDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        fill="#8884d8"
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {eventDistribution.map((_entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#18181b',
+                          border: '1px solid #27272a',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          color: '#fff',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Legend */}
+                <div className="flex-1 min-w-0 space-y-1.5 overflow-y-auto max-h-[260px]">
+                  {eventDistribution.map((entry, index) => {
+                    const total = eventDistribution.reduce((s, e) => s + e.value, 0);
+                    const pct = total > 0 ? ((entry.value / total) * 100).toFixed(0) : '0';
+                    return (
+                      <div key={entry.name} className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        />
+                        <span className="text-xs text-gray-700 dark:text-zinc-300 truncate flex-1">
+                          {entry.name}
+                        </span>
+                        <span className="text-xs font-medium text-gray-500 dark:text-zinc-400 tabular-nums flex-shrink-0">
+                          {pct}%
+                        </span>
+                        <span className="text-xs font-bold text-black dark:text-white tabular-nums flex-shrink-0 w-8 text-right">
+                          {entry.value}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500 dark:text-zinc-500 text-sm">
                 No event data yet
