@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import AnalyticsTabs from './AnalyticsTabs';
 
 interface UserStats {
   totalVisitors: number;
@@ -267,6 +268,7 @@ const UserAnalyticsPage: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <AnalyticsTabs />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import AnalyticsTabs from './AnalyticsTabs';
 
 interface LiveEvent {
   id: number;
@@ -302,6 +303,7 @@ const RealtimePage: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <AnalyticsTabs />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">

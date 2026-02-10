@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import FunnelChart, { FunnelStep } from './funnels/FunnelChart';
 import JourneyExplorer from './journey/JourneyExplorer';
+import AnalyticsTabs from './AnalyticsTabs';
 
 interface OverviewStats {
   totalVisitors: number;
@@ -510,33 +511,7 @@ const AnalyticsOverviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick Links */}
-      <div className="flex flex-wrap gap-2">
-        <Link
-          to="/analytics/search"
-          className="px-3 py-1.5 text-xs rounded bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors"
-        >
-          🔍 Search Analytics
-        </Link>
-        <Link
-          to="/analytics/properties"
-          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
-        >
-          Properties
-        </Link>
-        <Link
-          to="/analytics/users"
-          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
-        >
-          Users
-        </Link>
-        <Link
-          to="/analytics/realtime"
-          className="px-3 py-1.5 text-xs rounded bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
-        >
-          Realtime
-        </Link>
-      </div>
+      <AnalyticsTabs />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

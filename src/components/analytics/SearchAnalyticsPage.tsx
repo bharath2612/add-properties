@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import AnalyticsTabs from './AnalyticsTabs';
 
 interface SearchQuery {
   query: string;
@@ -168,6 +169,7 @@ const SearchAnalyticsPage: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <AnalyticsTabs />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
