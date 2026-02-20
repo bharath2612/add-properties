@@ -2,7 +2,32 @@
 
 All notable changes to the admin dashboard are documented here. Updated after every push.
 
-## 2026-02
+## 2026-02-20
+
+### feat: add Deep Research & Chat analytics pages, enhance funnels and realtime (`5c89485`)
+
+**New Pages**
+- DeepResearchAnalyticsPage: KPIs (reports generated, PDF downloads, auth block rate, completion rate), funnel (opened -> submitted -> viewed -> downloaded), questionnaire preferences pie chart, daily trend line chart, top researched properties table
+- ChatAnalyticsPage: KPIs (messages sent, avg response time, suggested query click rate, error rate), engagement funnel (sent -> received -> source clicked -> suggested query), daily volume bar chart, response time distribution, popular suggested queries table
+- Added Deep Research and Chat tabs to AnalyticsTabs (7 tabs total)
+- Registered `/analytics/deep-research` and `/analytics/chat` routes
+
+**Enhanced Funnels (AnalyticsOverviewPage)**
+- Auth funnel expanded from 2 to 5 steps: Anonymous Visitors -> Portal Time Triggered -> Signup Initiated -> OTP Sent -> Authenticated
+- Full conversion funnel expanded from 5 to 7 steps: added Deep Research and Contacted stages
+- EVENT_LABELS expanded from 8 to 40 entries covering all new event types
+
+**Contact Metrics (PropertyAnalyticsPage)**
+- Added Calendly Clicks and WhatsApp Clicks columns to the property analytics table
+- Included in CSV export
+
+**Realtime Event Colors (RealtimePage)**
+- Added 30+ color-coded EVENT_COLORS by category: purple (deep research), blue (chat), green (auth), orange (contact), cyan (voice), amber (map)
+- EVENT_LABELS expanded from 10 to 42 entries
+
+---
+
+## 2026-02 (earlier)
 
 ### refactor: clean up overview page and enhance journey explorer (`33a1802`)
 - Cleaned up analytics overview page layout
