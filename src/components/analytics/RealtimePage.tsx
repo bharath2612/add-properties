@@ -31,6 +31,7 @@ interface RealtimeStats {
 }
 
 const EVENT_COLORS: Record<string, string> = {
+  // Existing
   property_card_click: '#3b82f6',
   property_view_details: '#10b981',
   property_map_marker_click: '#f59e0b',
@@ -39,6 +40,45 @@ const EVENT_COLORS: Record<string, string> = {
   property_share: '#8b5cf6',
   page_view: '#6366f1',
   search_query: '#ec4899',
+  // Deep Research (purple)
+  deep_research_opened: '#8b5cf6',
+  deep_research_questionnaire_submitted: '#8b5cf6',
+  deep_research_questionnaire_cancelled: '#8b5cf6',
+  deep_research_report_viewed: '#8b5cf6',
+  deep_research_pdf_downloaded: '#8b5cf6',
+  deep_research_report_copied: '#8b5cf6',
+  deep_research_auth_blocked: '#8b5cf6',
+  // Chat (blue)
+  chat_message_sent: '#3b82f6',
+  chat_response_received: '#3b82f6',
+  chat_source_clicked: '#3b82f6',
+  chat_suggested_query_clicked: '#3b82f6',
+  chat_thinking_expanded: '#3b82f6',
+  chat_stream_error: '#ef4444',
+  // Auth (green)
+  auth_signup_initiated: '#10b981',
+  auth_signup_completed: '#10b981',
+  auth_login_initiated: '#10b981',
+  auth_login_completed: '#10b981',
+  auth_otp_sent: '#10b981',
+  auth_otp_verified: '#10b981',
+  auth_otp_failed: '#ef4444',
+  auth_portal_time_triggered: '#f59e0b',
+  // Contact (orange)
+  contact_calendly_clicked: '#f59e0b',
+  contact_whatsapp_clicked: '#f59e0b',
+  developer_popup_opened: '#f59e0b',
+  // Voice (cyan)
+  voice_search_started: '#06b6d4',
+  voice_search_completed: '#06b6d4',
+  voice_search_error: '#ef4444',
+  // Map (amber)
+  map_style_changed: '#d97706',
+  map_ai_mode_toggled: '#d97706',
+  // UX
+  property_view_on_map: '#f59e0b',
+  property_image_gallery_opened: '#6366f1',
+  search_history_item_clicked: '#ec4899',
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -52,6 +92,38 @@ const EVENT_LABELS: Record<string, string> = {
   search_query: 'Search Query',
   property_detail_view_start: 'Started Viewing',
   property_detail_view_end: 'Finished Viewing',
+  property_view_on_map: 'View on Map',
+  property_image_gallery_opened: 'Image Gallery',
+  search_history_item_clicked: 'History Click',
+  deep_research_opened: 'DR Opened',
+  deep_research_questionnaire_submitted: 'DR Submitted',
+  deep_research_questionnaire_cancelled: 'DR Cancelled',
+  deep_research_report_viewed: 'DR Report Viewed',
+  deep_research_pdf_downloaded: 'DR PDF Download',
+  deep_research_report_copied: 'DR Report Copied',
+  deep_research_auth_blocked: 'DR Auth Blocked',
+  chat_message_sent: 'Chat Message',
+  chat_response_received: 'Chat Response',
+  chat_source_clicked: 'Source Click',
+  chat_suggested_query_clicked: 'Suggested Query',
+  chat_thinking_expanded: 'Thinking Expanded',
+  chat_stream_error: 'Chat Error',
+  auth_signup_initiated: 'Signup Started',
+  auth_signup_completed: 'Signup Done',
+  auth_login_initiated: 'Login Started',
+  auth_login_completed: 'Login Done',
+  auth_otp_sent: 'OTP Sent',
+  auth_otp_verified: 'OTP Verified',
+  auth_otp_failed: 'OTP Failed',
+  auth_portal_time_triggered: 'Portal Timer',
+  contact_calendly_clicked: 'Calendly Click',
+  contact_whatsapp_clicked: 'WhatsApp Click',
+  developer_popup_opened: 'Developer Info',
+  voice_search_started: 'Voice Start',
+  voice_search_completed: 'Voice Done',
+  voice_search_error: 'Voice Error',
+  map_style_changed: 'Map Style',
+  map_ai_mode_toggled: 'AI Mode Toggle',
 };
 
 const RealtimePage: React.FC = () => {

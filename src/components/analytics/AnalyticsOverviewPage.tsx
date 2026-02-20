@@ -33,6 +33,38 @@ const EVENT_LABELS: Record<string, string> = {
   property_share: 'Share',
   page_view: 'Page View',
   search_query: 'Search',
+  property_view_on_map: 'View on Map',
+  property_image_gallery_opened: 'Image Gallery',
+  search_history_item_clicked: 'History Click',
+  deep_research_opened: 'DR Opened',
+  deep_research_questionnaire_submitted: 'DR Submitted',
+  deep_research_questionnaire_cancelled: 'DR Cancelled',
+  deep_research_report_viewed: 'DR Report Viewed',
+  deep_research_pdf_downloaded: 'DR PDF Download',
+  deep_research_report_copied: 'DR Report Copied',
+  deep_research_auth_blocked: 'DR Auth Blocked',
+  chat_message_sent: 'Chat Message',
+  chat_response_received: 'Chat Response',
+  chat_source_clicked: 'Source Click',
+  chat_suggested_query_clicked: 'Suggested Query',
+  chat_thinking_expanded: 'Thinking Expanded',
+  chat_stream_error: 'Chat Error',
+  auth_signup_initiated: 'Signup Started',
+  auth_signup_completed: 'Signup Done',
+  auth_login_initiated: 'Login Started',
+  auth_login_completed: 'Login Done',
+  auth_otp_sent: 'OTP Sent',
+  auth_otp_verified: 'OTP Verified',
+  auth_otp_failed: 'OTP Failed',
+  auth_portal_time_triggered: 'Portal Timer',
+  contact_calendly_clicked: 'Calendly Click',
+  contact_whatsapp_clicked: 'WhatsApp Click',
+  developer_popup_opened: 'Developer Info',
+  voice_search_started: 'Voice Start',
+  voice_search_completed: 'Voice Done',
+  voice_search_error: 'Voice Error',
+  map_style_changed: 'Map Style',
+  map_ai_mode_toggled: 'AI Mode Toggle',
 };
 
 const COLORS = ['#71717a', '#52525b', '#3f3f46', '#27272a', '#18181b'];
@@ -271,12 +303,32 @@ const AnalyticsOverviewPage: React.FC = () => {
         .not('visitor_fingerprint_id', 'is', null);
       const savedCount = new Set(saveVisitors?.map((e) => e.visitor_fingerprint_id)).size;
 
+      // 6. Visitors who submitted deep research questionnaire (deduplicated)
+      const { data: deepResearchVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'deep_research_questionnaire_submitted')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const deepResearchCount = new Set(deepResearchVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      // 7. Visitors who contacted (calendly or whatsapp, deduplicated)
+      const { data: contactVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .in('event_type', ['contact_calendly_clicked', 'contact_whatsapp_clicked'])
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const contactedCount = new Set(contactVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
       setFullConversionFunnel([
         { name: 'All Visitors', value: totalVisitors || 0, color: '#6366f1' },
         { name: 'Searched', value: searchedCount, color: '#ec4899' },
         { name: 'Signed Up', value: signedUp || 0, color: '#10b981' },
         { name: 'Viewed Property', value: viewedCount, color: '#3b82f6' },
         { name: 'Saved', value: savedCount, color: '#ef4444' },
+        { name: 'Deep Research', value: deepResearchCount, color: '#8b5cf6' },
+        { name: 'Contacted', value: contactedCount, color: '#f59e0b' },
       ]);
     } catch (error) {
       console.error('Error fetching full conversion funnel:', error);
@@ -291,6 +343,33 @@ const AnalyticsOverviewPage: React.FC = () => {
         .select('id', { count: 'exact', head: true })
         .gte('last_seen_at', dateFilter);
 
+      // Portal time triggered (unique visitors)
+      const { data: portalVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'auth_portal_time_triggered')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const portalTriggered = new Set(portalVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      // Signup initiated (unique visitors)
+      const { data: signupVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'auth_signup_initiated')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const signupInitiated = new Set(signupVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
+      // OTP sent (unique visitors)
+      const { data: otpVisitors } = await supabase
+        .from('user_activity_events')
+        .select('visitor_fingerprint_id')
+        .eq('event_type', 'auth_otp_sent')
+        .gte('created_at', dateFilter)
+        .not('visitor_fingerprint_id', 'is', null);
+      const otpSent = new Set(otpVisitors?.map((e) => e.visitor_fingerprint_id)).size;
+
       // Authenticated visitors
       const { count: authenticatedUsers } = await supabase
         .from('visitor_fingerprints')
@@ -300,7 +379,10 @@ const AnalyticsOverviewPage: React.FC = () => {
 
       setAuthFunnel([
         { name: 'Anonymous Visitors', value: allVisitors || 0, color: '#6b7280' },
-        { name: 'Authenticated Users', value: authenticatedUsers || 0, color: '#10b981' },
+        { name: 'Portal Time Triggered', value: portalTriggered, color: '#f59e0b' },
+        { name: 'Signup Initiated', value: signupInitiated, color: '#8b5cf6' },
+        { name: 'OTP Sent', value: otpSent, color: '#3b82f6' },
+        { name: 'Authenticated', value: authenticatedUsers || 0, color: '#10b981' },
       ]);
     } catch (error) {
       console.error('Error fetching auth funnel:', error);

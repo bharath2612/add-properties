@@ -7,6 +7,8 @@ const tabs = [
   { label: 'Properties', path: '/analytics/properties' },
   { label: 'Users', path: '/analytics/users' },
   { label: 'Realtime', path: '/analytics/realtime' },
+  { label: 'Deep Research', path: '/analytics/deep-research' },
+  { label: 'Chat', path: '/analytics/chat' },
 ];
 
 const AnalyticsTabs: React.FC = () => {

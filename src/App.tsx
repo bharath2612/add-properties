@@ -16,6 +16,8 @@ import PropertyAnalyticsPage from './components/analytics/PropertyAnalyticsPage'
 import UserAnalyticsPage from './components/analytics/UserAnalyticsPage';
 import RealtimePage from './components/analytics/RealtimePage';
 import SearchAnalyticsPage from './components/analytics/SearchAnalyticsPage';
+import DeepResearchAnalyticsPage from './components/analytics/DeepResearchAnalyticsPage';
+import ChatAnalyticsPage from './components/analytics/ChatAnalyticsPage';
 // LASCO Pages
 import LascoErrorsPage from './components/lasco/ErrorsPage';
 import LascoErrorDetailPage from './components/lasco/ErrorDetailPage';
@@ -74,6 +76,8 @@ function App() {
                       <Route path="analytics/users" element={<UserAnalyticsPage />} />
                       <Route path="analytics/search" element={<SearchAnalyticsPage />} />
                       <Route path="analytics/realtime" element={<RealtimePage />} />
+                      <Route path="analytics/deep-research" element={<DeepResearchAnalyticsPage />} />
+                      <Route path="analytics/chat" element={<ChatAnalyticsPage />} />
                       {/* LASCO Routes */}
                       <Route path="lasco" element={<LascoErrorsPage />} />
                       <Route path="lasco/errors" element={<LascoErrorsPage />} />

@@ -14,6 +14,8 @@ interface PropertyStats {
   mapClicks: number;
   saves: number;
   shares: number;
+  calendlyClicks: number;
+  whatsappClicks: number;
   uniqueVisitors: number;
   avgViewDuration: number;
 }
@@ -69,6 +71,8 @@ const PropertyAnalyticsPage: React.FC = () => {
         mapClicks: number;
         saves: number;
         shares: number;
+        calendlyClicks: number;
+        whatsappClicks: number;
         visitors: Set<string>;
         viewDurations: number[];
       }> = {};
@@ -82,6 +86,8 @@ const PropertyAnalyticsPage: React.FC = () => {
             mapClicks: 0,
             saves: 0,
             shares: 0,
+            calendlyClicks: 0,
+            whatsappClicks: 0,
             visitors: new Set(),
             viewDurations: [],
           };
@@ -111,6 +117,12 @@ const PropertyAnalyticsPage: React.FC = () => {
             break;
           case 'property_share':
             stats.shares++;
+            break;
+          case 'contact_calendly_clicked':
+            stats.calendlyClicks++;
+            break;
+          case 'contact_whatsapp_clicked':
+            stats.whatsappClicks++;
             break;
           case 'property_detail_view_end':
             if (event.duration_seconds) {
@@ -157,6 +169,8 @@ const PropertyAnalyticsPage: React.FC = () => {
           mapClicks: stats.mapClicks,
           saves: stats.saves,
           shares: stats.shares,
+          calendlyClicks: stats.calendlyClicks,
+          whatsappClicks: stats.whatsappClicks,
           uniqueVisitors: stats.visitors.size,
           avgViewDuration: Math.round(avgDuration),
         };
@@ -191,7 +205,7 @@ const PropertyAnalyticsPage: React.FC = () => {
   const topProperties = filteredProperties.slice(0, 10);
 
   const exportToCSV = () => {
-    const headers = ['Property Name', 'Total Views', 'Card Clicks', 'Detail Views', 'Map Clicks', 'Saves', 'Shares', 'Unique Visitors', 'Avg View Duration (s)'];
+    const headers = ['Property Name', 'Total Views', 'Card Clicks', 'Detail Views', 'Map Clicks', 'Saves', 'Shares', 'Calendly', 'WhatsApp', 'Unique Visitors', 'Avg View Duration (s)'];
     const rows = filteredProperties.map((p) => [
       p.name,
       p.totalViews,
@@ -200,6 +214,8 @@ const PropertyAnalyticsPage: React.FC = () => {
       p.mapClicks,
       p.saves,
       p.shares,
+      p.calendlyClicks,
+      p.whatsappClicks,
       p.uniqueVisitors,
       p.avgViewDuration,
     ]);
@@ -326,6 +342,8 @@ const PropertyAnalyticsPage: React.FC = () => {
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Map</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Saves</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Shares</th>
+                <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Calendly</th>
+                <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">WhatsApp</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Visitors</th>
               </tr>
             </thead>
@@ -361,13 +379,19 @@ const PropertyAnalyticsPage: React.FC = () => {
                       <span className="text-sm text-purple-600 dark:text-purple-400">{property.shares}</span>
                     </td>
                     <td className="text-center px-3 py-3">
+                      <span className="text-sm text-orange-600 dark:text-orange-400">{property.calendlyClicks}</span>
+                    </td>
+                    <td className="text-center px-3 py-3">
+                      <span className="text-sm text-green-600 dark:text-green-400">{property.whatsappClicks}</span>
+                    </td>
+                    <td className="text-center px-3 py-3">
                       <span className="text-sm text-gray-600 dark:text-zinc-400">{property.uniqueVisitors}</span>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-gray-500 dark:text-zinc-500 text-sm">
+                  <td colSpan={10} className="text-center py-8 text-gray-500 dark:text-zinc-500 text-sm">
                     No properties with activity data
                   </td>
                 </tr>
