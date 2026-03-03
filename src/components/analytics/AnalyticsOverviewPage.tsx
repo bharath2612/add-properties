@@ -62,6 +62,7 @@ const EVENT_LABELS: Record<string, string> = {
   developer_popup_opened: 'Developer Info',
   developer_page_viewed: 'Developer Page View',
   developer_property_clicked: 'Developer Property Click',
+  developer_website_clicked: 'Developer Website Click',
   property_card_impression: 'Card Impression',
   voice_search_started: 'Voice Start',
   voice_search_completed: 'Voice Done',

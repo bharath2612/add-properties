@@ -72,6 +72,7 @@ const EVENT_COLORS: Record<string, string> = {
   developer_popup_opened: '#f59e0b',
   developer_page_viewed: '#f59e0b',
   developer_property_clicked: '#f59e0b',
+  developer_website_clicked: '#f59e0b',
   // Voice (cyan)
   voice_search_started: '#06b6d4',
   voice_search_completed: '#06b6d4',
@@ -125,6 +126,7 @@ const EVENT_LABELS: Record<string, string> = {
   developer_popup_opened: 'Developer Info',
   developer_page_viewed: 'Developer Page View',
   developer_property_clicked: 'Developer Property Click',
+  developer_website_clicked: 'Developer Website Click',
   property_card_impression: 'Card Impression',
   voice_search_started: 'Voice Start',
   voice_search_completed: 'Voice Done',
