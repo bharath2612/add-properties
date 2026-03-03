@@ -4,6 +4,13 @@ All notable changes to the admin dashboard are documented here. Updated after ev
 
 ## 2026-03-03
 
+### feat: add developer_website_clicked event labels and colors (`5f966a6`)
+
+- AnalyticsOverviewPage: added "Website Clicked" label for `developer_website_clicked`
+- RealtimePage: added orange color and label for `developer_website_clicked` event
+
+---
+
 ### feat: add impressions + CTR columns and new event labels (`1c16183`)
 
 **PropertyAnalyticsPage**
