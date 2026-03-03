@@ -2,6 +2,26 @@
 
 All notable changes to the admin dashboard are documented here. Updated after every push.
 
+## 2026-03-03
+
+### feat: add impressions + CTR columns and new event labels (`1c16183`)
+
+**PropertyAnalyticsPage**
+- Added `Impressions` and `CTR%` columns to the property analytics table
+- CTR calculated as `cardClicks / impressions * 100`
+- Added "Sort by Impressions" option to sort dropdown
+- Counts `property_card_impression` events in the aggregation switch
+- Updated CSV export to include Impressions and CTR% columns
+
+**AnalyticsOverviewPage**
+- Added 3 new entries to EVENT_LABELS: Card Impression, Developer Page View, Developer Property Click
+
+**RealtimePage**
+- Added 3 new entries to EVENT_COLORS: indigo for impressions, orange for developer events
+- Added 3 new entries to EVENT_LABELS matching the new event types
+
+---
+
 ## 2026-02-20
 
 ### feat: add Deep Research & Chat analytics pages, enhance funnels and realtime (`5c89485`)
