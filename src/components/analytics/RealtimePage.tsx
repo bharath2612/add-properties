@@ -64,10 +64,14 @@ const EVENT_COLORS: Record<string, string> = {
   auth_otp_verified: '#10b981',
   auth_otp_failed: '#ef4444',
   auth_portal_time_triggered: '#f59e0b',
+  // Property impressions (indigo)
+  property_card_impression: '#6366f1',
   // Contact (orange)
   contact_calendly_clicked: '#f59e0b',
   contact_whatsapp_clicked: '#f59e0b',
   developer_popup_opened: '#f59e0b',
+  developer_page_viewed: '#f59e0b',
+  developer_property_clicked: '#f59e0b',
   // Voice (cyan)
   voice_search_started: '#06b6d4',
   voice_search_completed: '#06b6d4',
@@ -119,6 +123,9 @@ const EVENT_LABELS: Record<string, string> = {
   contact_calendly_clicked: 'Calendly Click',
   contact_whatsapp_clicked: 'WhatsApp Click',
   developer_popup_opened: 'Developer Info',
+  developer_page_viewed: 'Developer Page View',
+  developer_property_clicked: 'Developer Property Click',
+  property_card_impression: 'Card Impression',
   voice_search_started: 'Voice Start',
   voice_search_completed: 'Voice Done',
   voice_search_error: 'Voice Error',

@@ -18,13 +18,15 @@ interface PropertyStats {
   whatsappClicks: number;
   uniqueVisitors: number;
   avgViewDuration: number;
+  impressions: number;
+  ctr: number;
 }
 
 const PropertyAnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
   const [properties, setProperties] = useState<PropertyStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<'views' | 'saves' | 'clicks'>('views');
+  const [sortBy, setSortBy] = useState<'views' | 'saves' | 'clicks' | 'impressions'>('views');
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'all'>('30days');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -73,6 +75,7 @@ const PropertyAnalyticsPage: React.FC = () => {
         shares: number;
         calendlyClicks: number;
         whatsappClicks: number;
+        impressions: number;
         visitors: Set<string>;
         viewDurations: number[];
       }> = {};
@@ -88,6 +91,7 @@ const PropertyAnalyticsPage: React.FC = () => {
             shares: 0,
             calendlyClicks: 0,
             whatsappClicks: 0,
+            impressions: 0,
             visitors: new Set(),
             viewDurations: [],
           };
@@ -124,6 +128,9 @@ const PropertyAnalyticsPage: React.FC = () => {
           case 'contact_whatsapp_clicked':
             stats.whatsappClicks++;
             break;
+          case 'property_card_impression':
+            stats.impressions++;
+            break;
           case 'property_detail_view_end':
             if (event.duration_seconds) {
               stats.viewDurations.push(event.duration_seconds);
@@ -159,6 +166,9 @@ const PropertyAnalyticsPage: React.FC = () => {
           ? stats.viewDurations.reduce((a, b) => a + b, 0) / stats.viewDurations.length
           : 0;
 
+        const impressions = stats.impressions;
+        const ctr = impressions > 0 ? (stats.cardClicks / impressions) * 100 : 0;
+
         return {
           id,
           name: nameMap[id]?.name || `Property #${id}`,
@@ -173,6 +183,8 @@ const PropertyAnalyticsPage: React.FC = () => {
           whatsappClicks: stats.whatsappClicks,
           uniqueVisitors: stats.visitors.size,
           avgViewDuration: Math.round(avgDuration),
+          impressions,
+          ctr: Math.round(ctr * 10) / 10,
         };
       });
 
@@ -185,6 +197,8 @@ const PropertyAnalyticsPage: React.FC = () => {
             return b.saves - a.saves;
           case 'clicks':
             return b.cardClicks - a.cardClicks;
+          case 'impressions':
+            return b.impressions - a.impressions;
           default:
             return b.totalViews - a.totalViews;
         }
@@ -205,10 +219,12 @@ const PropertyAnalyticsPage: React.FC = () => {
   const topProperties = filteredProperties.slice(0, 10);
 
   const exportToCSV = () => {
-    const headers = ['Property Name', 'Total Views', 'Card Clicks', 'Detail Views', 'Map Clicks', 'Saves', 'Shares', 'Calendly', 'WhatsApp', 'Unique Visitors', 'Avg View Duration (s)'];
+    const headers = ['Property Name', 'Total Views', 'Impressions', 'CTR%', 'Card Clicks', 'Detail Views', 'Map Clicks', 'Saves', 'Shares', 'Calendly', 'WhatsApp', 'Unique Visitors', 'Avg View Duration (s)'];
     const rows = filteredProperties.map((p) => [
       p.name,
       p.totalViews,
+      p.impressions,
+      p.ctr,
       p.cardClicks,
       p.detailViews,
       p.mapClicks,
@@ -281,6 +297,7 @@ const PropertyAnalyticsPage: React.FC = () => {
             className="px-3 py-2 text-sm bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded focus:outline-none text-black dark:text-white"
           >
             <option value="views">Sort by Views</option>
+            <option value="impressions">Sort by Impressions</option>
             <option value="saves">Sort by Saves</option>
             <option value="clicks">Sort by Clicks</option>
           </select>
@@ -337,6 +354,8 @@ const PropertyAnalyticsPage: React.FC = () => {
               <tr className="border-b border-gray-200 dark:border-zinc-800 bg-gray-100 dark:bg-zinc-900">
                 <th className="text-left text-xs font-medium text-gray-500 dark:text-zinc-500 px-4 py-3">Property</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Views</th>
+                <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Impr.</th>
+                <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">CTR%</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Card</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Details</th>
                 <th className="text-center text-xs font-medium text-gray-500 dark:text-zinc-500 px-3 py-3">Map</th>
@@ -362,6 +381,12 @@ const PropertyAnalyticsPage: React.FC = () => {
                     </td>
                     <td className="text-center px-3 py-3">
                       <span className="text-sm font-medium text-black dark:text-white">{property.totalViews}</span>
+                    </td>
+                    <td className="text-center px-3 py-3">
+                      <span className="text-sm text-indigo-600 dark:text-indigo-400">{property.impressions}</span>
+                    </td>
+                    <td className="text-center px-3 py-3">
+                      <span className="text-sm text-teal-600 dark:text-teal-400">{property.ctr}%</span>
                     </td>
                     <td className="text-center px-3 py-3">
                       <span className="text-sm text-blue-600 dark:text-blue-400">{property.cardClicks}</span>
@@ -391,7 +416,7 @@ const PropertyAnalyticsPage: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-gray-500 dark:text-zinc-500 text-sm">
+                  <td colSpan={12} className="text-center py-8 text-gray-500 dark:text-zinc-500 text-sm">
                     No properties with activity data
                   </td>
                 </tr>
