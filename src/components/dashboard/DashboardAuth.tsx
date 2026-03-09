@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { verifyTOTP } from '../../utils/auth2fa';
+import { verifyOTPServerSide } from '../../utils/auth2fa-server';
 import { useTheme } from '../../contexts/ThemeContext';
 import SessionWarningModal from './SessionWarningModal';
 
@@ -28,38 +28,20 @@ const DashboardAuth: React.FC = () => {
     setLoading(true);
 
     try {
-      // Get the TOTP secret (from database or localStorage)
-      const { getTOTPSecret } = await import('../../utils/auth2fa');
-      const { debugTOTPSecretTable } = await import('../../utils/auth2fa-db');
-      
-      // Debug: Check table status (only in development)
-      if (import.meta.env.DEV) {
-        await debugTOTPSecretTable();
-      }
-      
-      const secret = await getTOTPSecret();
-      if (!secret) {
-        console.error('2FA secret is null or empty');
-        setError('2FA secret not found in database. Please contact your administrator.');
-        setLoading(false);
-        return;
-      }
-
-      // Trim and validate OTP
       const trimmedOtp = otp.trim();
       if (trimmedOtp.length !== 6) {
         setError('OTP must be exactly 6 digits');
         setLoading(false);
         return;
       }
-      
-      const isValid = await verifyTOTP(trimmedOtp, secret);
-      
-      if (isValid) {
+
+      const result = await verifyOTPServerSide(trimmedOtp);
+
+      if (result.valid) {
         login();
         setOtp('');
       } else {
-        setError('Invalid OTP code. Please make sure: 1) Your device time is synchronized, 2) You\'re entering the current code from your authenticator app, 3) The code hasn\'t expired (codes refresh every 30 seconds).');
+        setError(result.error || 'Invalid OTP code. Please make sure: 1) Your device time is synchronized, 2) You\'re entering the current code from your authenticator app, 3) The code hasn\'t expired (codes refresh every 30 seconds).');
       }
     } catch (err: any) {
       setError('An error occurred during login. Please try again.');
