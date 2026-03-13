@@ -47,8 +47,8 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/sp/, ''),
         headers: {
-          apikey: env.SUPABASE_SERVICE_ROLE_KEY || '',
-          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
+          apikey: env.VITE_SUPABASE_SERVICE || env.SUPABASE_SERVICE_ROLE_KEY || '',
+          Authorization: `Bearer ${env.VITE_SUPABASE_SERVICE || env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
         },
       },
       // Other API calls (R2 upload, etc.) → wrangler pages dev
