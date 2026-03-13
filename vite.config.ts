@@ -1,7 +1,10 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
   plugins: [react()],
   build: {
     outDir: 'dist',
@@ -38,7 +41,17 @@ export default defineConfig({
   // Development server configuration
   server: {
     proxy: {
-      // Proxy API calls to prevent 404 in development
+      // Supabase proxy: rewrite /api/sp/* → Supabase with service_role key
+      '/api/sp': {
+        target: env.VITE_SUPABASE_URL || 'https://svapyzcfldheymahioor.supabase.co',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/sp/, ''),
+        headers: {
+          apikey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
+        },
+      },
+      // Other API calls (R2 upload, etc.) → wrangler pages dev
       '/api': {
         target: 'http://localhost:8788',
         changeOrigin: true,
@@ -46,12 +59,10 @@ export default defineConfig({
           proxy.on('error', (err, _req, _res) => {
             console.log('Proxy error - API endpoint not available. Run: npm run dev:with-functions');
           });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Proxying:', req.method, req.url);
-          });
         },
       },
     },
   },
+};
 })
 

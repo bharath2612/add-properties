@@ -1,11 +1,20 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Base Supabase client
-const baseClient = createClient(supabaseUrl, supabaseAnonKey);
+// Route all queries through the CF Pages proxy function (/api/sp/*)
+// which adds the service_role key server-side. This is needed because
+// the RLS-hardening migration revoked anon access to admin tables.
+// In dev: Vite proxies /api/* → localhost:8788 (wrangler pages dev)
+// In prod: CF Pages serves functions/api/sp/[[path]].ts directly
+const baseClient = createClient('/api/sp', supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
 
 // Auth check function
 let authCheckCallback: (() => boolean) | null = null;
