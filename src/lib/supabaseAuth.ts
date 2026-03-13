@@ -8,7 +8,8 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 // the RLS-hardening migration revoked anon access to admin tables.
 // In dev: Vite proxies /api/* → localhost:8788 (wrangler pages dev)
 // In prod: CF Pages serves functions/api/sp/[[path]].ts directly
-const baseClient = createClient('/api/sp', supabaseAnonKey, {
+const proxyUrl = `${window.location.origin}/api/sp`;
+const baseClient = createClient(proxyUrl, supabaseAnonKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
