@@ -35,6 +35,25 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 export default async function handler(request: Request) {
+  // Debug mode: /api/sp/rest/v1/properties?__debug=1
+  const debugUrl = new URL(request.url);
+  if (debugUrl.searchParams.has('__debug')) {
+    const info: Record<string, unknown> = {
+      url: request.url,
+      pathname: debugUrl.pathname,
+      search: debugUrl.search,
+      searchParams: Object.fromEntries(debugUrl.searchParams),
+    };
+    // Show what targetUrl would be
+    const sp = debugUrl.searchParams.get('__path') || '';
+    const pathFromUrl = debugUrl.pathname.match(/^\/api\/sp\/(.+)$/)?.[1] || '';
+    info.subPath_from_query = sp;
+    info.subPath_from_pathname = pathFromUrl;
+    return new Response(JSON.stringify(info, null, 2), {
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
+  }
+
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
