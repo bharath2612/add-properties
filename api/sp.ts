@@ -71,15 +71,18 @@ export default async function handler(request: Request) {
     );
   }
 
-  // Extract the Supabase sub-path.
-  // Vercel rewrites /api/sp/rest/v1/... → /api/sp?__path=rest/v1/...
+  // Vercel preserves the original pathname even after rewrite.
+  // Extract the Supabase sub-path from the URL pathname.
   const url = new URL(request.url);
-  const subPath = url.searchParams.get('__path') || '';
+  const pathMatch = url.pathname.match(/^\/api\/sp\/(.+)$/);
+  const subPath = pathMatch ? pathMatch[1] : '';
 
-  // Rebuild query string WITHOUT __path to avoid leaking it to PostgREST
+  // Vercel injects __path and path params from the rewrite — strip them
   const cleanParams = new URLSearchParams();
   url.searchParams.forEach((value, key) => {
-    if (key !== '__path') cleanParams.append(key, value);
+    if (key !== '__path' && key !== 'path' && key !== '__debug') {
+      cleanParams.append(key, value);
+    }
   });
   const cleanSearch = cleanParams.toString() ? `?${cleanParams.toString()}` : '';
   const targetUrl = `${supabaseUrl}/${subPath}${cleanSearch}`;
