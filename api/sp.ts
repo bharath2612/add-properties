@@ -1,25 +1,27 @@
 /**
- * Supabase Proxy — Vercel Edge Function
+ * Supabase Proxy — Vercel Serverless Function
  *
  * Routes admin dashboard queries through the service_role key so the
  * browser never sees the secret. After the RLS-hardening migration,
  * the anon key can no longer read analytics / admin tables.
  *
+ * All /api/sp/* requests are rewritten to this function via vercel.json.
+ * The original path is preserved in x-matched-path or parsed from the URL.
+ *
  * Required Vercel env vars (set in Dashboard → Settings → Environment Variables):
- *   SUPABASE_URL              – e.g. https://svapyzcfldheymahioor.supabase.co
- *   SUPABASE_SERVICE_ROLE_KEY – the service_role JWT
+ *   VITE_SUPABASE_URL     – e.g. https://svapyzcfldheymahioor.supabase.co
+ *   VITE_SUPABASE_SERVICE – the service_role JWT
  */
 
 export const config = { runtime: 'edge' };
 
-// Headers we forward from the Supabase JS client to PostgREST
 const FORWARDED_HEADERS = [
   'accept',
   'content-type',
-  'prefer',           // count, return=representation, etc.
-  'range',            // pagination
-  'x-client-info',    // Supabase client version
-  'accept-profile',   // PostgREST schema selection
+  'prefer',
+  'range',
+  'x-client-info',
+  'accept-profile',
   'content-profile',
 ];
 
@@ -33,7 +35,6 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 export default async function handler(request: Request) {
-  // --- CORS preflight ---
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
@@ -44,19 +45,23 @@ export default async function handler(request: Request) {
   if (!serviceRoleKey || !supabaseUrl) {
     return new Response(
       JSON.stringify({
-        error: 'Supabase proxy not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars.',
+        error: 'Supabase proxy not configured.',
+        hint: 'Set VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE in Vercel env vars.',
       }),
       { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } },
     );
   }
 
-  // --- Extract the path after /api/sp/ ---
+  // Extract the Supabase sub-path.
+  // Vercel rewrites /api/sp/rest/v1/... → /api/sp?__path=rest/v1/...
   const url = new URL(request.url);
-  const match = url.pathname.match(/^\/api\/sp\/(.*)$/);
-  const subPath = match ? match[1] : '';
-  const targetUrl = `${supabaseUrl}/${subPath}${url.search}`;
+  const subPath = url.searchParams.get('__path') || '';
+  // Remove __path from forwarded query string
+  url.searchParams.delete('__path');
+  const forwardedSearch = url.search; // remaining query params
+  const targetUrl = `${supabaseUrl}/${subPath}${forwardedSearch}`;
 
-  // --- Build forwarded headers with service_role auth ---
+  // Build headers with service_role auth
   const headers = new Headers();
   headers.set('apikey', serviceRoleKey);
   headers.set('Authorization', `Bearer ${serviceRoleKey}`);
@@ -70,14 +75,13 @@ export default async function handler(request: Request) {
     headers.set('content-type', 'application/json');
   }
 
-  // --- Forward the request ---
+  // Forward to Supabase
   const response = await fetch(targetUrl, {
     method: request.method,
     headers,
     body: ['GET', 'HEAD'].includes(request.method) ? null : request.body,
   });
 
-  // --- Return response with CORS ---
   const responseHeaders = new Headers(response.headers);
   for (const [key, value] of Object.entries(CORS_HEADERS)) {
     responseHeaders.set(key, value);
