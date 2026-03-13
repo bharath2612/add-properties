@@ -56,10 +56,14 @@ export default async function handler(request: Request) {
   // Vercel rewrites /api/sp/rest/v1/... → /api/sp?__path=rest/v1/...
   const url = new URL(request.url);
   const subPath = url.searchParams.get('__path') || '';
-  // Remove __path from forwarded query string
-  url.searchParams.delete('__path');
-  const forwardedSearch = url.search; // remaining query params
-  const targetUrl = `${supabaseUrl}/${subPath}${forwardedSearch}`;
+
+  // Rebuild query string WITHOUT __path to avoid leaking it to PostgREST
+  const cleanParams = new URLSearchParams();
+  url.searchParams.forEach((value, key) => {
+    if (key !== '__path') cleanParams.append(key, value);
+  });
+  const cleanSearch = cleanParams.toString() ? `?${cleanParams.toString()}` : '';
+  const targetUrl = `${supabaseUrl}/${subPath}${cleanSearch}`;
 
   // Build headers with service_role auth
   const headers = new Headers();
