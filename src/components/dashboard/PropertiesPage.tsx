@@ -22,6 +22,7 @@ interface Property {
 interface FilterOptions {
   areas: string[];
   statuses: string[];
+  countries: string[];
   developers: { id: number; name: string }[];
 }
 
@@ -38,6 +39,7 @@ const PropertiesPage: React.FC = () => {
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     areas: [],
     statuses: [],
+    countries: [],
     developers: [],
   });
   
@@ -45,6 +47,7 @@ const PropertiesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
   const [developerFilter, setDeveloperFilter] = useState('');
   
   // Pagination
@@ -58,12 +61,12 @@ const PropertiesPage: React.FC = () => {
   // Fetch properties when filters or page changes
   useEffect(() => {
     fetchProperties();
-  }, [currentPage, searchTerm, statusFilter, areaFilter, developerFilter]);
+  }, [currentPage, searchTerm, statusFilter, areaFilter, countryFilter, developerFilter]);
 
   const fetchFilterOptions = async () => {
     try {
       // Fetch all filter options in parallel
-      const [areasResult, statusesResult, developersResult] = await Promise.all([
+      const [areasResult, statusesResult, countriesResult, developersResult] = await Promise.all([
         supabase
           .from('properties')
           .select('area')
@@ -74,6 +77,11 @@ const PropertiesPage: React.FC = () => {
           .select('status')
           .not('status', 'is', null)
           .neq('status', ''),
+        supabase
+          .from('properties')
+          .select('country')
+          .not('country', 'is', null)
+          .neq('country', ''),
         supabase
           .from('partner_developers')
           .select('id, name')
@@ -91,9 +99,15 @@ const PropertiesPage: React.FC = () => {
         new Set((statusesResult.data || []).map(item => item.status).filter(Boolean))
       ).sort();
 
+      // Extract unique countries
+      const uniqueCountries = Array.from(
+        new Set((countriesResult.data || []).map(item => item.country).filter(Boolean))
+      ).sort();
+
       setFilterOptions({
         areas: uniqueAreas as string[],
         statuses: uniqueStatuses as string[],
+        countries: uniqueCountries as string[],
         developers: developersResult.data || [],
       });
     } catch (error) {
@@ -122,6 +136,10 @@ const PropertiesPage: React.FC = () => {
         query = query.eq('area', areaFilter);
       }
 
+      if (countryFilter) {
+        query = query.eq('country', countryFilter);
+      }
+
       if (developerFilter) {
         query = query.eq('developer_id', parseInt(developerFilter));
       }
@@ -147,7 +165,7 @@ const PropertiesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, statusFilter, areaFilter, developerFilter]);
+  }, [currentPage, searchTerm, statusFilter, areaFilter, countryFilter, developerFilter]);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -160,7 +178,7 @@ const PropertiesPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [debouncedSearch]);
 
-  const handleFilterChange = (filterType: 'status' | 'area' | 'developer', value: string) => {
+  const handleFilterChange = (filterType: 'status' | 'area' | 'country' | 'developer', value: string) => {
     setCurrentPage(1); // Reset to first page when filter changes
     switch (filterType) {
       case 'status':
@@ -168,6 +186,9 @@ const PropertiesPage: React.FC = () => {
         break;
       case 'area':
         setAreaFilter(value);
+        break;
+      case 'country':
+        setCountryFilter(value);
         break;
       case 'developer':
         setDeveloperFilter(value);
@@ -180,6 +201,7 @@ const PropertiesPage: React.FC = () => {
     setSearchTerm('');
     setStatusFilter('');
     setAreaFilter('');
+    setCountryFilter('');
     setDeveloperFilter('');
     setCurrentPage(1);
   };
@@ -235,7 +257,7 @@ const PropertiesPage: React.FC = () => {
     });
   };
 
-  const hasActiveFilters = searchTerm || statusFilter || areaFilter || developerFilter;
+  const hasActiveFilters = searchTerm || statusFilter || areaFilter || countryFilter || developerFilter;
 
   // Handle status change
   const handleStatusChange = async (propertyId: number, newStatus: string) => {
@@ -289,7 +311,7 @@ const PropertiesPage: React.FC = () => {
 
       {/* Search and Filters */}
       <div className="bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-900 rounded-lg p-3 md:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 md:gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 md:gap-3">
           {/* Search */}
           <div className="sm:col-span-2">
             <input
@@ -328,6 +350,22 @@ const PropertiesPage: React.FC = () => {
               {filterOptions.areas.map((area) => (
                 <option key={area} value={area}>
                   {area}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Country Filter */}
+          <div>
+            <select
+              value={countryFilter}
+              onChange={(e) => handleFilterChange('country', e.target.value)}
+              className="w-full px-3 py-1.5 bg-white dark:bg-black border border-gray-300 dark:border-zinc-800 rounded text-sm text-black dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-zinc-700"
+            >
+              <option value="">All Countries</option>
+              {filterOptions.countries.map((country) => (
+                <option key={country} value={country}>
+                  {country}
                 </option>
               ))}
             </select>
